@@ -1,8 +1,8 @@
+__debug_bin
+.DS_Store
 *.exe
 *.patch
-.DS_Store
+bin/
+dist/
 tmp/
-/whoami
-/dist/
-/bin/
-/__debug_bin
+whoami
