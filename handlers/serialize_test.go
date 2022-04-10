@@ -23,10 +23,6 @@ func (s errorfulSerializer) Serialize(v any) ([]byte, error) {
 	return nil, errors.New("serialization failed")
 }
 
-func newGetRequest(target string) *http.Request {
-	return httptest.NewRequest(http.MethodGet, target, http.NoBody)
-}
-
 func TestSuccessfulSerializationReturnsSuccessResponse(t *testing.T) {
 	responseRecorder := httptest.NewRecorder()
 	request := newGetRequest("/")
