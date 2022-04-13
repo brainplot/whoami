@@ -8,27 +8,11 @@ import (
 	"github.com/desotech-it/whoami/handlers"
 )
 
-func newEmptyBodyRequest(method, target string) *http.Request {
-	return httptest.NewRequest(method, target, http.NoBody)
-}
-
-func newGetRequest(target string) *http.Request {
-	return newEmptyBodyRequest(http.MethodGet, target)
-}
-
-func newHeadRequest(target string) *http.Request {
-	return newEmptyBodyRequest(http.MethodHead, target)
-}
-
-func newOptionsRequest(target string) *http.Request {
-	return newEmptyBodyRequest(http.MethodOptions, target)
-}
-
 func TestReadHandler(t *testing.T) {
 	handler := handlers.ReadHandler(http.NotFoundHandler())
 	t.Run("GET=allowed", func(t *testing.T) {
 		recorder := httptest.NewRecorder()
-		request := newGetRequest("/")
+		request := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
 		handler.ServeHTTP(recorder, request)
 		got := recorder.Code
 		want := http.StatusNotFound
@@ -38,7 +22,7 @@ func TestReadHandler(t *testing.T) {
 	})
 	t.Run("HEAD=allowed", func(t *testing.T) {
 		recorder := httptest.NewRecorder()
-		request := newHeadRequest("/")
+		request := httptest.NewRequest(http.MethodHead, "/", http.NoBody)
 		handler.ServeHTTP(recorder, request)
 		got := recorder.Code
 		want := http.StatusNotFound
@@ -48,7 +32,7 @@ func TestReadHandler(t *testing.T) {
 	})
 	t.Run("OPTIONS=allowed", func(t *testing.T) {
 		recorder := httptest.NewRecorder()
-		request := newOptionsRequest("/")
+		request := httptest.NewRequest(http.MethodOptions, "/", http.NoBody)
 		handler.ServeHTTP(recorder, request)
 		t.Run("Code=200", func(t *testing.T) {
 			got := recorder.Code
@@ -67,7 +51,7 @@ func TestReadHandler(t *testing.T) {
 	})
 	t.Run("POST=disallowed", func(t *testing.T) {
 		recorder := httptest.NewRecorder()
-		request := newEmptyBodyRequest(http.MethodPost, "/")
+		request := httptest.NewRequest(http.MethodPost, "/", http.NoBody)
 		handler.ServeHTTP(recorder, request)
 		t.Run("Code=405", func(t *testing.T) {
 			got := recorder.Code
