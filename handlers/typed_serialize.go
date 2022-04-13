@@ -1,5 +1,5 @@
 // This file will house all of the "constructors" for known SerializeHandler structs.
-//go:build !test
+//go:!test
 
 package handlers
 
