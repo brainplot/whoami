@@ -9,8 +9,8 @@ import (
 	"github.com/desotech-it/whoami/serialize"
 )
 
-func JSONSerializeHandler(v any) http.Handler {
-	return SerializeHandler{
+func JSONSerializerHandler(v any) http.Handler {
+	return SerializerHandler{
 		Payload:     v,
 		Serializer:  serialize.SerializerJSON,
 		ContentType: "application/json; charset=utf-8",

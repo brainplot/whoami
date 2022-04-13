@@ -26,7 +26,7 @@ func (s errorfulSerializer) Serialize(v any) ([]byte, error) {
 func TestSuccessfulSerializationReturnsSuccessResponse(t *testing.T) {
 	responseRecorder := httptest.NewRecorder()
 	request := newGetRequest("/")
-	handler := handlers.SerializeHandler{
+	handler := handlers.SerializerHandler{
 		Payload:     nil,
 		Serializer:  successfulSerializer{},
 		ContentType: "test/success",
@@ -61,7 +61,7 @@ func TestSuccessfulSerializationReturnsSuccessResponse(t *testing.T) {
 func TestErrorfulSerializationReturnsErrorResponse(t *testing.T) {
 	responseRecorder := httptest.NewRecorder()
 	request := newGetRequest("/")
-	handler := handlers.SerializeHandler{
+	handler := handlers.SerializerHandler{
 		Payload:    nil,
 		Serializer: errorfulSerializer{},
 	}
