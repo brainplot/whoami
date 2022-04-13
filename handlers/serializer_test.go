@@ -33,6 +33,7 @@ func TestSuccessfulSerializationReturnsSuccessResponse(t *testing.T) {
 	}
 	handler.ServeHTTP(recorder, request)
 	response := recorder.Result()
+	defer response.Body.Close()
 	t.Run("Code=OK", func(t *testing.T) {
 		got := response.StatusCode
 		want := http.StatusOK
@@ -68,6 +69,7 @@ func TestErrorfulSerializationReturnsErrorResponse(t *testing.T) {
 	}
 	handler.ServeHTTP(recoder, request)
 	response := recoder.Result()
+	defer response.Body.Close()
 	t.Run("Code=InternalServerError", func(t *testing.T) {
 		got := response.StatusCode
 		want := http.StatusInternalServerError

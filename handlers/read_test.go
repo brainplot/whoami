@@ -15,6 +15,7 @@ func TestReadHandler(t *testing.T) {
 		request := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
 		handler.ServeHTTP(recorder, request)
 		response := recorder.Result()
+		defer response.Body.Close()
 		got := response.StatusCode
 		want := http.StatusNotFound
 		if got != want {
@@ -26,6 +27,7 @@ func TestReadHandler(t *testing.T) {
 		request := httptest.NewRequest(http.MethodHead, "/", http.NoBody)
 		handler.ServeHTTP(recorder, request)
 		response := recorder.Result()
+		defer response.Body.Close()
 		got := response.StatusCode
 		want := http.StatusNotFound
 		if got != want {
@@ -37,6 +39,7 @@ func TestReadHandler(t *testing.T) {
 		request := httptest.NewRequest(http.MethodOptions, "/", http.NoBody)
 		handler.ServeHTTP(recorder, request)
 		response := recorder.Result()
+		defer response.Body.Close()
 		t.Run("Code=200", func(t *testing.T) {
 			got := response.StatusCode
 			want := http.StatusOK
@@ -57,6 +60,7 @@ func TestReadHandler(t *testing.T) {
 		request := httptest.NewRequest(http.MethodPost, "/", http.NoBody)
 		handler.ServeHTTP(recorder, request)
 		response := recorder.Result()
+		defer response.Body.Close()
 		t.Run("Code=405", func(t *testing.T) {
 			got := response.StatusCode
 			want := http.StatusMethodNotAllowed
