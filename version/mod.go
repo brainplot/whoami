@@ -15,11 +15,28 @@ var (
 )
 
 type Info struct {
-	Major     uint16
-	Minor     uint16
-	Patch     uint16
-	Commit    string
-	BuildDate time.Time
+	// Major version number
+	//
+	// The leftmost number in the version string
+	Major uint16 `json:"major"`
+
+	// Minor version number
+	//
+	// The number in the middle of the version string
+	Minor uint16 `json:"minor"`
+
+	// Patch number
+	//
+	// The rightmost number in the version string
+	Patch uint16 `json:"patch"`
+
+	// Full commit hash
+	//
+	// The full commit hash of HEAD at build time
+	Commit string `json:"commit,omitempty"`
+
+	// Build date
+	BuildDate time.Time `json:"buildDate,omitempty"`
 }
 
 func parseVersionNumber(numStr string) (uint16, error) {

@@ -5,3 +5,43 @@ info:
   license:
     name: MIT
     url: https://opensource.org/licenses/MIT
+tags:
+  - name: app
+    description: Information about the app instance
+components:
+  schemas:
+    version:
+      type: object
+      properties:
+        version:
+          type: string
+        major:
+          type: integer
+          format: int32
+          minimum: 0
+        minor:
+          type: integer
+          format: int32
+          minimum: 0
+        patch:
+          type: integer
+          format: int32
+          minimum: 0
+        commit:
+          type: string
+        buildDate:
+          type: string
+          format: date-time
+paths:
+  /version:
+    get:
+      tags:
+        - app
+      summary: Returns the running version
+      responses:
+        '200':
+          description: A JSON object describing the app version
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/version'
