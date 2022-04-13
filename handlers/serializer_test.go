@@ -24,30 +24,31 @@ func (s errorfulSerializer) Serialize(v any) ([]byte, error) {
 }
 
 func TestSuccessfulSerializationReturnsSuccessResponse(t *testing.T) {
-	responseRecorder := httptest.NewRecorder()
+	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
 	handler := handlers.SerializerHandler{
 		Payload:     nil,
 		Serializer:  successfulSerializer{},
 		ContentType: "test/success",
 	}
-	handler.ServeHTTP(responseRecorder, request)
+	handler.ServeHTTP(recorder, request)
+	response := recorder.Result()
 	t.Run("Code=OK", func(t *testing.T) {
-		got := responseRecorder.Code
+		got := response.StatusCode
 		want := http.StatusOK
 		if got != want {
 			t.Errorf("got = %d; want = %d", got, want)
 		}
 	})
 	t.Run("Content-Type=test/success", func(t *testing.T) {
-		got := responseRecorder.Header().Get("Content-Type")
+		got := response.Header.Get("Content-Type")
 		want := "test/success"
 		if got != want {
 			t.Errorf("got = %q; want = %q", got, want)
 		}
 	})
 	t.Run("Body=test", func(t *testing.T) {
-		got, err := io.ReadAll(responseRecorder.Body)
+		got, err := io.ReadAll(response.Body)
 		if err != nil {
 			t.Error(err)
 		}
@@ -59,29 +60,30 @@ func TestSuccessfulSerializationReturnsSuccessResponse(t *testing.T) {
 }
 
 func TestErrorfulSerializationReturnsErrorResponse(t *testing.T) {
-	responseRecorder := httptest.NewRecorder()
+	recoder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
 	handler := handlers.SerializerHandler{
 		Payload:    nil,
 		Serializer: errorfulSerializer{},
 	}
-	handler.ServeHTTP(responseRecorder, request)
+	handler.ServeHTTP(recoder, request)
+	response := recoder.Result()
 	t.Run("Code=InternalServerError", func(t *testing.T) {
-		got := responseRecorder.Code
+		got := response.StatusCode
 		want := http.StatusInternalServerError
 		if got != want {
 			t.Errorf("got = %d; want = %d", got, want)
 		}
 	})
 	t.Run("Content-Type=text/plain", func(t *testing.T) {
-		got := responseRecorder.Header().Get("Content-Type")
+		got := response.Header.Get("Content-Type")
 		want := "text/plain; charset=utf-8"
 		if got != want {
 			t.Errorf("got = %q; want = %q", got, want)
 		}
 	})
 	t.Run("Body=error", func(t *testing.T) {
-		got, err := io.ReadAll(responseRecorder.Body)
+		got, err := io.ReadAll(response.Body)
 		if err != nil {
 			t.Error(err)
 		}

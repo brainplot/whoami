@@ -14,7 +14,8 @@ func TestReadHandler(t *testing.T) {
 		recorder := httptest.NewRecorder()
 		request := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
 		handler.ServeHTTP(recorder, request)
-		got := recorder.Code
+		response := recorder.Result()
+		got := response.StatusCode
 		want := http.StatusNotFound
 		if got != want {
 			t.Errorf("got = %d; want = %d", got, want)
@@ -24,7 +25,8 @@ func TestReadHandler(t *testing.T) {
 		recorder := httptest.NewRecorder()
 		request := httptest.NewRequest(http.MethodHead, "/", http.NoBody)
 		handler.ServeHTTP(recorder, request)
-		got := recorder.Code
+		response := recorder.Result()
+		got := response.StatusCode
 		want := http.StatusNotFound
 		if got != want {
 			t.Errorf("got = %d; want = %d", got, want)
@@ -34,15 +36,16 @@ func TestReadHandler(t *testing.T) {
 		recorder := httptest.NewRecorder()
 		request := httptest.NewRequest(http.MethodOptions, "/", http.NoBody)
 		handler.ServeHTTP(recorder, request)
+		response := recorder.Result()
 		t.Run("Code=200", func(t *testing.T) {
-			got := recorder.Code
+			got := response.StatusCode
 			want := http.StatusOK
 			if got != want {
 				t.Errorf("got = %d; want = %d", got, want)
 			}
 		})
 		t.Run("Allow=GET,HEAD", func(t *testing.T) {
-			got := recorder.Header().Get("Allow")
+			got := response.Header.Get("Allow")
 			want := "GET, HEAD"
 			if got != want {
 				t.Errorf("got = %q; want = %q", got, want)
@@ -53,8 +56,9 @@ func TestReadHandler(t *testing.T) {
 		recorder := httptest.NewRecorder()
 		request := httptest.NewRequest(http.MethodPost, "/", http.NoBody)
 		handler.ServeHTTP(recorder, request)
+		response := recorder.Result()
 		t.Run("Code=405", func(t *testing.T) {
-			got := recorder.Code
+			got := response.StatusCode
 			want := http.StatusMethodNotAllowed
 			if got != want {
 				t.Errorf("got = %d; want = %d", got, want)
