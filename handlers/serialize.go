@@ -20,7 +20,7 @@ func (h SerializeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	} else {
 		header := w.Header()
 		header.Set("Content-Type", h.ContentType)
-		header.Set("X-Content-Type", "nosniff")
+		header.Set("X-Content-Type-Options", "nosniff")
 		http.ServeContent(w, r, "", time.Time{}, bytes.NewReader(data))
 	}
 }
