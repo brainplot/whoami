@@ -54,15 +54,7 @@ func Handler(version *version.Info, config *Config) http.Handler {
 		panic(ErrMissingVersion)
 	}
 	r := mux.NewRouter()
-	{
-		handler := getVersionHandler(version)
-		r.Handle("/version", handler)
-		r.Handle("/version/", handler)
-	}
-	{
-		handler := getMemoryHandler(config.VirtualMemoryProvider)
-		r.Handle("/memory", handler)
-		r.Handle("/memory/", handler)
-	}
+	r.Handle("/version", getVersionHandler(version))
+	r.Handle("/memory", getMemoryHandler(config.VirtualMemoryProvider))
 	return r
 }
