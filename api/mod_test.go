@@ -42,7 +42,7 @@ const (
 	OutcomeCanceled Outcome = iota
 )
 
-func mockVirtualStatMemoryProvider(outcome Outcome) api.VirtualMemoryProviderFunc {
+func mockVirtualStatMemoryProvider(outcome Outcome) memory.VirtualMemoryProviderFunc {
 	switch outcome {
 	case OutcomeFailure:
 		return func(context.Context) (*memory.VirtualMemoryStat, error) {
@@ -102,7 +102,7 @@ func TestMemory(t *testing.T) {
 	t.Run("Outcome=Success", func(t *testing.T) {
 		providerFunc := mockVirtualStatMemoryProvider(OutcomeSuccess)
 		config := &api.Config{
-			VirtualMemoryProvider: api.VirtualMemoryProviderFunc(providerFunc),
+			VirtualMemoryProvider: memory.VirtualMemoryProviderFunc(providerFunc),
 		}
 		handler := api.Handler(&testVersion, config)
 		recorder := httptest.NewRecorder()
@@ -132,7 +132,7 @@ func TestMemory(t *testing.T) {
 	t.Run("Outcome=Failure", func(t *testing.T) {
 		providerFunc := mockVirtualStatMemoryProvider(OutcomeFailure)
 		config := &api.Config{
-			VirtualMemoryProvider: api.VirtualMemoryProviderFunc(providerFunc),
+			VirtualMemoryProvider: memory.VirtualMemoryProviderFunc(providerFunc),
 		}
 		handler := api.Handler(&testVersion, config)
 		recorder := httptest.NewRecorder()
@@ -152,7 +152,7 @@ func TestMemory(t *testing.T) {
 	t.Run("Outcome=Canceled", func(t *testing.T) {
 		providerFunc := mockVirtualStatMemoryProvider(OutcomeCanceled)
 		config := &api.Config{
-			VirtualMemoryProvider: api.VirtualMemoryProviderFunc(providerFunc),
+			VirtualMemoryProvider: memory.VirtualMemoryProviderFunc(providerFunc),
 		}
 		handler := api.Handler(&testVersion, config)
 		recorder := httptest.NewRecorder()

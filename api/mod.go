@@ -15,12 +15,12 @@ var (
 )
 
 type Config struct {
-	VirtualMemoryProvider VirtualMemoryProvider
+	VirtualMemoryProvider memory.VirtualMemoryProvider
 }
 
 func NewConfig() *Config {
 	return &Config{
-		VirtualMemoryProvider: VirtualMemoryProviderFunc(memory.VirtualMemoryWithContext),
+		VirtualMemoryProvider: memory.VirtualMemoryProviderFunc(memory.VirtualMemoryWithContext),
 	}
 }
 
@@ -30,7 +30,7 @@ func getVersionHandler(version *version.Info) http.Handler {
 }
 
 // GET /memory
-func getMemoryHandler(provider VirtualMemoryProvider) http.Handler {
+func getMemoryHandler(provider memory.VirtualMemoryProvider) http.Handler {
 	middleware := func(w http.ResponseWriter, r *http.Request) {
 		if vm, err := provider.VirtualMemory(r.Context()); err != nil {
 			errorHandler := handlers.ErrorHandler(err.Error(), http.StatusInternalServerError)
