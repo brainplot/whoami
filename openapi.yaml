@@ -8,6 +8,8 @@ info:
 tags:
   - name: app
     description: Information about the app instance
+  - name: environment
+    description: Information about the run environment
 components:
   schemas:
     version:
@@ -32,6 +34,26 @@ components:
         buildDate:
           type: string
           format: date-time
+    memory:
+      type: object
+      properties:
+        total:
+          type: integer
+          format: int64
+          minimum: 0
+        available:
+          type: integer
+          format: int64
+          minimum: 0
+        used:
+          type: integer
+          format: int64
+          minimum: 0
+        usedPercent:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 100
 paths:
   /version:
     get:
@@ -45,3 +67,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/version'
+  /memory:
+    get:
+      tags:
+        - environment
+      summary: Returns the available RAM
+      responses:
+        '200':
+          description: A JSON object describing the available RAM
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/memory'
