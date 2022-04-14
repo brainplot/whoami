@@ -1,7 +1,6 @@
 package api
 
 import (
-	"context"
 	"errors"
 	"net/http"
 
@@ -25,13 +24,6 @@ func NewConfig() *Config {
 	}
 }
 
-func handleCancelableOperation(w http.ResponseWriter, err error, code int) {
-	if err == context.Canceled {
-		panic(http.ErrAbortHandler)
-	}
-	http.Error(w, err.Error(), code)
-}
-
 // GET /version
 func getVersionHandler(version *version.Info) http.Handler {
 	return handlers.ReadHandler(handlers.JSONSerializerHandler(version))
@@ -41,7 +33,8 @@ func getVersionHandler(version *version.Info) http.Handler {
 func getMemoryHandler(provider VirtualMemoryProvider) http.Handler {
 	middleware := func(w http.ResponseWriter, r *http.Request) {
 		if vm, err := provider.VirtualMemory(r.Context()); err != nil {
-			handleCancelableOperation(w, err, http.StatusInternalServerError)
+			errorHandler := handlers.ErrorHandler(err.Error(), http.StatusInternalServerError)
+			handlers.CancellableHandler(err, errorHandler).ServeHTTP(w, r)
 		} else {
 			handlers.JSONSerializerHandler(vm).ServeHTTP(w, r)
 		}
