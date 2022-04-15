@@ -11,6 +11,7 @@ import (
 
 	"github.com/desotech-it/whoami/api"
 	"github.com/desotech-it/whoami/api/memory"
+	"github.com/desotech-it/whoami/api/net"
 	"github.com/desotech-it/whoami/version"
 )
 
@@ -28,6 +29,20 @@ var (
 		Available:   42,
 		Used:        42,
 		UsedPercent: 42.0,
+	}
+
+	testInterfaces = []net.Interface{
+		{
+			Index: 42,
+			MTU:   1234,
+			Name:  "test",
+			Addresses: []net.Addr{
+				{
+					Network: "test+net",
+					Value:   "10.0.0.1",
+				},
+			},
+		},
 	}
 
 	errTest           = errors.New("test error")
@@ -57,6 +72,21 @@ func mockVirtualStatMemoryProvider(outcome Outcome) memory.VirtualMemoryProvider
 			toBeCanceledCtx, cancelFunc := context.WithCancel(ctx)
 			cancelFunc()
 			return nil, toBeCanceledCtx.Err()
+		}
+	default:
+		panic(errUnknownOutcome)
+	}
+}
+
+func mockInterfacesProvider(outcome Outcome) net.InterfacesProviderFunc {
+	switch outcome {
+	case OutcomeFailure:
+		return func() ([]net.Interface, error) {
+			return nil, errTest
+		}
+	case OutcomeSuccess:
+		return func() ([]net.Interface, error) {
+			return testInterfaces, nil
 		}
 	default:
 		panic(errUnknownOutcome)
@@ -159,5 +189,65 @@ func TestMemory(t *testing.T) {
 		request := httptest.NewRequest(http.MethodGet, "/memory", http.NoBody)
 		defer passIfPanicWithError(http.ErrAbortHandler, t)
 		handler.ServeHTTP(recorder, request)
+	})
+}
+
+func interfaceSlicesEqual(a, b []net.Interface) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i, netInterface := range a {
+		if !netInterface.Equal(&b[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func TestInterfaces(t *testing.T) {
+	t.Run("Outcome=Success", func(t *testing.T) {
+		config := api.Config{
+			InterfacesProvider: mockInterfacesProvider(OutcomeSuccess),
+		}
+		handler := api.Handler(&testVersion, &config)
+		recorder := httptest.NewRecorder()
+		request := httptest.NewRequest(http.MethodGet, "/interfaces", http.NoBody)
+		handler.ServeHTTP(recorder, request)
+		response := recorder.Result()
+		defer response.Body.Close()
+		t.Run("Code=OK", func(t *testing.T) {
+			got := response.StatusCode
+			want := http.StatusOK
+			if got != want {
+				t.Errorf("got = %d; want = %d", got, want)
+			}
+		})
+		t.Run("Body=Interfaces", func(t *testing.T) {
+			got := []net.Interface{}
+			want := testInterfaces
+			if err := json.NewDecoder(response.Body).Decode(&got); err != nil {
+				t.Error(err)
+			}
+			if !interfaceSlicesEqual(got, want) {
+				t.Errorf("got = %v; want = %v", got, want)
+			}
+		})
+	})
+
+	t.Run("Outcome=Failure", func(t *testing.T) {
+		config := api.Config{
+			InterfacesProvider: mockInterfacesProvider(OutcomeFailure),
+		}
+		handler := api.Handler(&testVersion, &config)
+		recorder := httptest.NewRecorder()
+		request := httptest.NewRequest(http.MethodGet, "/interfaces", http.NoBody)
+		handler.ServeHTTP(recorder, request)
+		response := recorder.Result()
+		defer response.Body.Close()
+		got := response.StatusCode
+		want := http.StatusInternalServerError
+		if got != want {
+			t.Errorf("got = %d; want = %d", got, want)
+		}
 	})
 }

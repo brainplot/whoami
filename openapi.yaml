@@ -54,6 +54,28 @@ components:
           format: double
           minimum: 0
           maximum: 100
+    interface:
+      type: object
+      properties:
+        index:
+          type: integer
+          format: int64
+          minimum: 1
+        mtu:
+          type: integer
+          format: int64
+          minimum: 0
+        name:
+          type: string
+        addresses:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              value:
+                type: string
 paths:
   /version:
     get:
@@ -79,3 +101,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/memory'
+  /interfaces:
+    get:
+      tags:
+        - environment
+      summary: Returns the network interfaces
+      responses:
+        '200':
+          description: A JSON object describing the network interfaces as seen by the running environment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/interface'

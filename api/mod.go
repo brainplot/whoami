@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/desotech-it/whoami/api/memory"
+	"github.com/desotech-it/whoami/api/net"
 	"github.com/desotech-it/whoami/handlers"
 	"github.com/desotech-it/whoami/version"
 	"github.com/gorilla/mux"
@@ -16,11 +17,13 @@ var (
 
 type Config struct {
 	VirtualMemoryProvider memory.VirtualMemoryProvider
+	InterfacesProvider    net.InterfacesProvider
 }
 
 func NewConfig() *Config {
 	return &Config{
 		VirtualMemoryProvider: memory.VirtualMemoryProviderFunc(memory.VirtualMemoryWithContext),
+		InterfacesProvider:    net.InterfacesProviderFunc(net.Interfaces),
 	}
 }
 
@@ -42,6 +45,18 @@ func getMemoryHandler(provider memory.VirtualMemoryProvider) http.Handler {
 	return handlers.ReadHandler(http.HandlerFunc(middleware))
 }
 
+// GET /interfaces
+func getInterfacesHandler(provider net.InterfacesProvider) http.Handler {
+	middleware := func(w http.ResponseWriter, r *http.Request) {
+		if netInterfaces, err := provider.Interfaces(); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		} else {
+			handlers.JSONSerializerHandler(netInterfaces).ServeHTTP(w, r)
+		}
+	}
+	return handlers.ReadHandler(http.HandlerFunc(middleware))
+}
+
 func Handler(version *version.Info, config *Config) http.Handler {
 	if version == nil {
 		panic(ErrMissingVersion)
@@ -49,5 +64,6 @@ func Handler(version *version.Info, config *Config) http.Handler {
 	r := mux.NewRouter()
 	r.Handle("/version", getVersionHandler(version))
 	r.Handle("/memory", getMemoryHandler(config.VirtualMemoryProvider))
+	r.Handle("/interfaces", getInterfacesHandler(config.InterfacesProvider))
 	return r
 }
