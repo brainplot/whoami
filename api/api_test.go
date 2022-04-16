@@ -57,7 +57,7 @@ const (
 	OutcomeCanceled Outcome = iota
 )
 
-func mockVirtualStatMemoryProvider(outcome Outcome) memory.VirtualMemoryProviderFunc {
+func mockVirtualMemoryProvider(outcome Outcome) memory.VirtualMemoryProviderFunc {
 	switch outcome {
 	case OutcomeFailure:
 		return func(context.Context) (*memory.VirtualMemoryStat, error) {
@@ -140,17 +140,17 @@ func TestMemory(t *testing.T) {
 	}{
 		{
 			name:     "Success",
-			provider: mockVirtualStatMemoryProvider(OutcomeSuccess),
+			provider: mockVirtualMemoryProvider(OutcomeSuccess),
 			code:     http.StatusOK,
 		},
 		{
 			name:     "Failure",
-			provider: mockVirtualStatMemoryProvider(OutcomeFailure),
+			provider: mockVirtualMemoryProvider(OutcomeFailure),
 			code:     http.StatusInternalServerError,
 		},
 		{
 			name:     "Canceled",
-			provider: mockVirtualStatMemoryProvider(OutcomeCanceled),
+			provider: mockVirtualMemoryProvider(OutcomeCanceled),
 			err:      http.ErrAbortHandler,
 		},
 	}
