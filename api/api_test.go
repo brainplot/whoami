@@ -102,94 +102,79 @@ func passIfPanicWithError(err error, t *testing.T) {
 }
 
 func TestVersion(t *testing.T) {
-	config := &api.Config{}
-	handler := api.Handler(&testVersion, config)
-	request := httptest.NewRequest(http.MethodGet, "/version", http.NoBody)
-	recorder := httptest.NewRecorder()
-	handler.ServeHTTP(recorder, request)
-	response := recorder.Result()
+	var response *http.Response = nil
+	{
+		server := api.NewServer(&testVersion)
+		handler := api.Handler(server)
+		request := httptest.NewRequest(http.MethodGet, "/version", http.NoBody)
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, request)
+		response = recorder.Result()
+	}
 	defer response.Body.Close()
-	t.Run("Code=OK", func(t *testing.T) {
+	{
 		got := response.StatusCode
 		want := http.StatusOK
 		if got != want {
 			t.Errorf("got = %d; want = %d", got, want)
 		}
-	})
-	t.Run("Body=TestVersion", func(t *testing.T) {
+	}
+	{
 		got := version.Info{}
 		want := &testVersion
-		if err := json.NewDecoder(recorder.Body).Decode(&got); err != nil {
+		if err := json.NewDecoder(response.Body).Decode(&got); err != nil {
 			t.Error(err)
 		}
 		if got != *want {
 			t.Errorf("got = %v; want = %v", got, testVersion)
 		}
-	})
+	}
 }
 
 func TestMemory(t *testing.T) {
-	t.Run("Outcome=Success", func(t *testing.T) {
-		providerFunc := mockVirtualStatMemoryProvider(OutcomeSuccess)
-		config := &api.Config{
-			VirtualMemoryProvider: memory.VirtualMemoryProviderFunc(providerFunc),
-		}
-		handler := api.Handler(&testVersion, config)
-		recorder := httptest.NewRecorder()
-		request := httptest.NewRequest(http.MethodGet, "/memory", http.NoBody)
-		handler.ServeHTTP(recorder, request)
-		response := recorder.Result()
-		defer response.Body.Close()
-		t.Run("Code=OK", func(t *testing.T) {
+	testCases := []struct {
+		name     string
+		provider memory.VirtualMemoryProvider
+		code     int
+		err      error
+	}{
+		{
+			name:     "Success",
+			provider: mockVirtualStatMemoryProvider(OutcomeSuccess),
+			code:     http.StatusOK,
+		},
+		{
+			name:     "Failure",
+			provider: mockVirtualStatMemoryProvider(OutcomeFailure),
+			code:     http.StatusInternalServerError,
+		},
+		{
+			name:     "Canceled",
+			provider: mockVirtualStatMemoryProvider(OutcomeCanceled),
+			err:      http.ErrAbortHandler,
+		},
+	}
+	for _, tC := range testCases {
+		t.Run(tC.name, func(t *testing.T) {
+			var response *http.Response = nil
+			{
+				server := api.NewServer(&testVersion)
+				server.VirtualMemoryProvider = tC.provider
+				recorder := httptest.NewRecorder()
+				request := httptest.NewRequest(http.MethodGet, "/memory", http.NoBody)
+				handler := api.Handler(server)
+				defer passIfPanicWithError(tC.err, t)
+				handler.ServeHTTP(recorder, request)
+				response = recorder.Result()
+			}
+			defer response.Body.Close()
 			got := response.StatusCode
-			want := http.StatusOK
+			want := tC.code
 			if got != want {
 				t.Errorf("got = %d; want = %d", got, want)
 			}
 		})
-		t.Run("Body=Memory", func(t *testing.T) {
-			got := memory.VirtualMemoryStat{}
-			want := &testVirtualMemory
-			if err := json.NewDecoder(response.Body).Decode(&got); err != nil {
-				t.Error(err)
-			}
-			if got != *want {
-				t.Errorf("got = %v; want = %v", got, want)
-			}
-		})
-	})
-
-	t.Run("Outcome=Failure", func(t *testing.T) {
-		providerFunc := mockVirtualStatMemoryProvider(OutcomeFailure)
-		config := &api.Config{
-			VirtualMemoryProvider: memory.VirtualMemoryProviderFunc(providerFunc),
-		}
-		handler := api.Handler(&testVersion, config)
-		recorder := httptest.NewRecorder()
-		request := httptest.NewRequest(http.MethodGet, "/memory", http.NoBody)
-		handler.ServeHTTP(recorder, request)
-		response := recorder.Result()
-		defer response.Body.Close()
-		t.Run("Code=InternalServerError", func(t *testing.T) {
-			got := response.StatusCode
-			want := http.StatusInternalServerError
-			if got != want {
-				t.Errorf("got = %d; want = %d", got, want)
-			}
-		})
-	})
-
-	t.Run("Outcome=Canceled", func(t *testing.T) {
-		providerFunc := mockVirtualStatMemoryProvider(OutcomeCanceled)
-		config := &api.Config{
-			VirtualMemoryProvider: memory.VirtualMemoryProviderFunc(providerFunc),
-		}
-		handler := api.Handler(&testVersion, config)
-		recorder := httptest.NewRecorder()
-		request := httptest.NewRequest(http.MethodGet, "/memory", http.NoBody)
-		defer passIfPanicWithError(http.ErrAbortHandler, t)
-		handler.ServeHTTP(recorder, request)
-	})
+	}
 }
 
 func interfaceSlicesEqual(a, b []net.Interface) bool {
@@ -205,49 +190,55 @@ func interfaceSlicesEqual(a, b []net.Interface) bool {
 }
 
 func TestInterfaces(t *testing.T) {
-	t.Run("Outcome=Success", func(t *testing.T) {
-		config := api.Config{
-			InterfacesProvider: mockInterfacesProvider(OutcomeSuccess),
-		}
-		handler := api.Handler(&testVersion, &config)
-		recorder := httptest.NewRecorder()
-		request := httptest.NewRequest(http.MethodGet, "/interfaces", http.NoBody)
-		handler.ServeHTTP(recorder, request)
-		response := recorder.Result()
-		defer response.Body.Close()
-		t.Run("Code=OK", func(t *testing.T) {
-			got := response.StatusCode
-			want := http.StatusOK
-			if got != want {
-				t.Errorf("got = %d; want = %d", got, want)
+	testCases := []struct {
+		name     string
+		provider net.InterfacesProvider
+		code     int
+		body     []net.Interface
+	}{
+		{
+			name:     "Success",
+			provider: mockInterfacesProvider(OutcomeSuccess),
+			code:     http.StatusOK,
+			body:     testInterfaces,
+		},
+		{
+			name:     "Failure",
+			provider: mockInterfacesProvider(OutcomeFailure),
+			code:     http.StatusInternalServerError,
+		},
+	}
+	for _, tC := range testCases {
+		t.Run(tC.name, func(t *testing.T) {
+			var response *http.Response = nil
+			{
+				server := api.NewServer(&testVersion)
+				server.InterfacesProvider = tC.provider
+				recorder := httptest.NewRecorder()
+				request := httptest.NewRequest(http.MethodGet, "/interfaces", http.NoBody)
+				handler := api.Handler(server)
+				handler.ServeHTTP(recorder, request)
+				response = recorder.Result()
+			}
+			defer response.Body.Close()
+			{
+				got := response.StatusCode
+				want := tC.code
+				if got != want {
+					t.Errorf("got = %d; want = %d", got, want)
+				}
+			}
+			if response.StatusCode == http.StatusOK {
+				var got []net.Interface
+				want := tC.body
+				if err := json.NewDecoder(response.Body).Decode(&got); err != nil {
+					t.Error(err)
+				} else {
+					if !interfaceSlicesEqual(got, want) {
+						t.Errorf("got = %v; want = %v", got, want)
+					}
+				}
 			}
 		})
-		t.Run("Body=Interfaces", func(t *testing.T) {
-			got := []net.Interface{}
-			want := testInterfaces
-			if err := json.NewDecoder(response.Body).Decode(&got); err != nil {
-				t.Error(err)
-			}
-			if !interfaceSlicesEqual(got, want) {
-				t.Errorf("got = %v; want = %v", got, want)
-			}
-		})
-	})
-
-	t.Run("Outcome=Failure", func(t *testing.T) {
-		config := api.Config{
-			InterfacesProvider: mockInterfacesProvider(OutcomeFailure),
-		}
-		handler := api.Handler(&testVersion, &config)
-		recorder := httptest.NewRecorder()
-		request := httptest.NewRequest(http.MethodGet, "/interfaces", http.NoBody)
-		handler.ServeHTTP(recorder, request)
-		response := recorder.Result()
-		defer response.Body.Close()
-		got := response.StatusCode
-		want := http.StatusInternalServerError
-		if got != want {
-			t.Errorf("got = %d; want = %d", got, want)
-		}
-	})
+	}
 }
