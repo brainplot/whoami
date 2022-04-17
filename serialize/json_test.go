@@ -8,7 +8,7 @@ import (
 	"github.com/desotech-it/whoami/serialize"
 )
 
-func TestNilSerializesToNull(t *testing.T) {
+func TestSerializerJSONNil(t *testing.T) {
 	data, err := serialize.SerializerJSON.Serialize(nil)
 	if err != nil {
 		t.Error(err)
@@ -20,7 +20,7 @@ func TestNilSerializesToNull(t *testing.T) {
 	}
 }
 
-func TestNonNilSerializesToPayload(t *testing.T) {
+func TestSerializerJSONPayload(t *testing.T) {
 	type payload struct {
 		Str string
 		Num int

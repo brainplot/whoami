@@ -9,64 +9,58 @@ import (
 )
 
 func TestReadHandler(t *testing.T) {
+	testCases := []struct {
+		method string
+		want   int
+	}{
+		{
+			method: http.MethodGet,
+			want:   http.StatusNotFound,
+		},
+		{
+			method: http.MethodHead,
+			want:   http.StatusNotFound,
+		},
+		{
+			method: http.MethodOptions,
+			want:   http.StatusOK,
+		},
+		{
+			method: http.MethodPost,
+			want:   http.StatusMethodNotAllowed,
+		},
+		{
+			method: http.MethodPut,
+			want:   http.StatusMethodNotAllowed,
+		},
+		{
+			method: http.MethodDelete,
+			want:   http.StatusMethodNotAllowed,
+		},
+		{
+			method: http.MethodConnect,
+			want:   http.StatusMethodNotAllowed,
+		},
+		{
+			method: http.MethodTrace,
+			want:   http.StatusMethodNotAllowed,
+		},
+		{
+			method: http.MethodPatch,
+			want:   http.StatusMethodNotAllowed,
+		},
+	}
 	handler := handlers.ReadHandler(http.NotFoundHandler())
-	t.Run("GET=allowed", func(t *testing.T) {
-		recorder := httptest.NewRecorder()
-		request := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
-		handler.ServeHTTP(recorder, request)
-		response := recorder.Result()
-		defer response.Body.Close()
-		got := response.StatusCode
-		want := http.StatusNotFound
-		if got != want {
-			t.Errorf("got = %d; want = %d", got, want)
-		}
-	})
-	t.Run("HEAD=allowed", func(t *testing.T) {
-		recorder := httptest.NewRecorder()
-		request := httptest.NewRequest(http.MethodHead, "/", http.NoBody)
-		handler.ServeHTTP(recorder, request)
-		response := recorder.Result()
-		defer response.Body.Close()
-		got := response.StatusCode
-		want := http.StatusNotFound
-		if got != want {
-			t.Errorf("got = %d; want = %d", got, want)
-		}
-	})
-	t.Run("OPTIONS=allowed", func(t *testing.T) {
-		recorder := httptest.NewRecorder()
-		request := httptest.NewRequest(http.MethodOptions, "/", http.NoBody)
-		handler.ServeHTTP(recorder, request)
-		response := recorder.Result()
-		defer response.Body.Close()
-		t.Run("Code=200", func(t *testing.T) {
+	for _, tC := range testCases {
+		t.Run(tC.method, func(t *testing.T) {
+			request := httptest.NewRequest(tC.method, "/", http.NoBody)
+			response := sendRequestToHandler(request, handler)
+			defer response.Body.Close()
 			got := response.StatusCode
-			want := http.StatusOK
+			want := tC.want
 			if got != want {
 				t.Errorf("got = %d; want = %d", got, want)
 			}
 		})
-		t.Run("Allow=GET,HEAD", func(t *testing.T) {
-			got := response.Header.Get("Allow")
-			want := "GET, HEAD"
-			if got != want {
-				t.Errorf("got = %q; want = %q", got, want)
-			}
-		})
-	})
-	t.Run("POST=disallowed", func(t *testing.T) {
-		recorder := httptest.NewRecorder()
-		request := httptest.NewRequest(http.MethodPost, "/", http.NoBody)
-		handler.ServeHTTP(recorder, request)
-		response := recorder.Result()
-		defer response.Body.Close()
-		t.Run("Code=405", func(t *testing.T) {
-			got := response.StatusCode
-			want := http.StatusMethodNotAllowed
-			if got != want {
-				t.Errorf("got = %d; want = %d", got, want)
-			}
-		})
-	})
+	}
 }

@@ -6,92 +6,91 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/desotech-it/whoami/handlers"
+	"github.com/desotech-it/whoami/serialize"
+)
+
+var (
+	errSerializer = errors.New("serialization failed")
+	testBody      = []byte("test")
 )
 
 type successfulSerializer struct{}
 
 func (s successfulSerializer) Serialize(v any) ([]byte, error) {
-	return []byte("test"), nil
+	return testBody, nil
 }
 
 type errorfulSerializer struct{}
 
 func (s errorfulSerializer) Serialize(v any) ([]byte, error) {
-	return nil, errors.New("serialization failed")
+	return nil, errSerializer
 }
 
-func TestSuccessfulSerializationReturnsSuccessResponse(t *testing.T) {
-	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
-	handler := handlers.SerializerHandler{
-		Payload:     nil,
-		Serializer:  successfulSerializer{},
-		ContentType: "test/success",
+func TestSerializerHandler(t *testing.T) {
+	testCases := []struct {
+		name        string
+		serializer  serialize.Serializer
+		contentType string
+		code        int
+		body        []byte
+	}{
+		{
+			name:        "Success",
+			serializer:  successfulSerializer{},
+			contentType: "test/success",
+			code:        http.StatusOK,
+			body:        testBody,
+		},
+		{
+			name:        "Failure",
+			serializer:  errorfulSerializer{},
+			contentType: "text/plain",
+			code:        http.StatusInternalServerError,
+			body:        []byte(errSerializer.Error()),
+		},
 	}
-	handler.ServeHTTP(recorder, request)
-	response := recorder.Result()
-	defer response.Body.Close()
-	t.Run("Code=OK", func(t *testing.T) {
-		got := response.StatusCode
-		want := http.StatusOK
-		if got != want {
-			t.Errorf("got = %d; want = %d", got, want)
-		}
-	})
-	t.Run("Content-Type=test/success", func(t *testing.T) {
-		got := response.Header.Get("Content-Type")
-		want := "test/success"
-		if got != want {
-			t.Errorf("got = %q; want = %q", got, want)
-		}
-	})
-	t.Run("Body=test", func(t *testing.T) {
-		got, err := io.ReadAll(response.Body)
-		if err != nil {
-			t.Error(err)
-		}
-		want := []byte("test")
-		if !bytes.Equal(got, want) {
-			t.Errorf("got = %q; want = %q", got, want)
-		}
-	})
-}
-
-func TestErrorfulSerializationReturnsErrorResponse(t *testing.T) {
-	recoder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
-	handler := handlers.SerializerHandler{
-		Payload:    nil,
-		Serializer: errorfulSerializer{},
+	for _, tC := range testCases {
+		t.Run(tC.name, func(t *testing.T) {
+			handler := handlers.SerializerHandler{
+				Serializer:  tC.serializer,
+				ContentType: tC.contentType,
+			}
+			var response *http.Response = nil
+			{
+				request := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
+				response = sendRequestToHandler(request, handler)
+			}
+			defer response.Body.Close()
+			{
+				got := response.StatusCode
+				want := tC.code
+				if got != want {
+					t.Errorf("got = %d; want = %d", got, want)
+				}
+			}
+			{
+				got := response.Header.Get("Content-Type")
+				want := tC.contentType
+				if !strings.HasPrefix(got, want) {
+					t.Errorf("got = %v; want = %v", got, want)
+				}
+			}
+			{
+				got, err := io.ReadAll(response.Body)
+				if err != nil {
+					t.Error(err)
+				} else {
+					got = bytes.TrimSpace(got)
+				}
+				want := tC.body
+				if !bytes.Equal(got, want) {
+					t.Errorf("got = %v; want = %v", string(got), string(want))
+				}
+			}
+		})
 	}
-	handler.ServeHTTP(recoder, request)
-	response := recoder.Result()
-	defer response.Body.Close()
-	t.Run("Code=InternalServerError", func(t *testing.T) {
-		got := response.StatusCode
-		want := http.StatusInternalServerError
-		if got != want {
-			t.Errorf("got = %d; want = %d", got, want)
-		}
-	})
-	t.Run("Content-Type=text/plain", func(t *testing.T) {
-		got := response.Header.Get("Content-Type")
-		want := "text/plain; charset=utf-8"
-		if got != want {
-			t.Errorf("got = %q; want = %q", got, want)
-		}
-	})
-	t.Run("Body=error", func(t *testing.T) {
-		got, err := io.ReadAll(response.Body)
-		if err != nil {
-			t.Error(err)
-		}
-		want := []byte("serialization failed\n")
-		if !bytes.Equal(got, want) {
-			t.Errorf("got = %s; want = %s", got, want)
-		}
-	})
 }
