@@ -101,16 +101,16 @@ func passIfPanicWithError(err error, t *testing.T) {
 	}
 }
 
+func sendRequestToHandler(request *http.Request, handler http.Handler) *http.Response {
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+	return recorder.Result()
+}
+
 func TestVersion(t *testing.T) {
-	var response *http.Response = nil
-	{
-		server := api.NewServer(&testVersion)
-		handler := api.Handler(server)
-		request := httptest.NewRequest(http.MethodGet, "/version", http.NoBody)
-		recorder := httptest.NewRecorder()
-		handler.ServeHTTP(recorder, request)
-		response = recorder.Result()
-	}
+	handler := api.Handler(api.NewServer(&testVersion))
+	request := httptest.NewRequest(http.MethodGet, "/version", http.NoBody)
+	response := sendRequestToHandler(request, handler)
 	defer response.Body.Close()
 	{
 		got := response.StatusCode
@@ -156,21 +156,14 @@ func TestMemory(t *testing.T) {
 	}
 	for _, tC := range testCases {
 		t.Run(tC.name, func(t *testing.T) {
-			var response *http.Response = nil
-			{
-				server := api.NewServer(&testVersion)
-				server.VirtualMemoryProvider = tC.provider
-				recorder := httptest.NewRecorder()
-				request := httptest.NewRequest(http.MethodGet, "/memory", http.NoBody)
-				handler := api.Handler(server)
-				defer passIfPanicWithError(tC.err, t)
-				handler.ServeHTTP(recorder, request)
-				response = recorder.Result()
-			}
+			server := api.NewServer(&testVersion)
+			server.VirtualMemoryProvider = tC.provider
+			handler := api.Handler(server)
+			request := httptest.NewRequest(http.MethodGet, "/memory", http.NoBody)
+			defer passIfPanicWithError(tC.err, t)
+			response := sendRequestToHandler(request, handler)
 			defer response.Body.Close()
-			got := response.StatusCode
-			want := tC.code
-			if got != want {
+			if got, want := response.StatusCode, tC.code; got != want {
 				t.Errorf("got = %d; want = %d", got, want)
 			}
 		})
@@ -210,23 +203,14 @@ func TestInterfaces(t *testing.T) {
 	}
 	for _, tC := range testCases {
 		t.Run(tC.name, func(t *testing.T) {
-			var response *http.Response = nil
-			{
-				server := api.NewServer(&testVersion)
-				server.InterfacesProvider = tC.provider
-				recorder := httptest.NewRecorder()
-				request := httptest.NewRequest(http.MethodGet, "/interfaces", http.NoBody)
-				handler := api.Handler(server)
-				handler.ServeHTTP(recorder, request)
-				response = recorder.Result()
-			}
+			server := api.NewServer(&testVersion)
+			server.InterfacesProvider = tC.provider
+			handler := api.Handler(server)
+			request := httptest.NewRequest(http.MethodGet, "/interfaces", http.NoBody)
+			response := sendRequestToHandler(request, handler)
 			defer response.Body.Close()
-			{
-				got := response.StatusCode
-				want := tC.code
-				if got != want {
-					t.Errorf("got = %d; want = %d", got, want)
-				}
+			if got, want := response.StatusCode, tC.code; got != want {
+				t.Errorf("got = %d; want = %d", got, want)
 			}
 			if response.StatusCode == http.StatusOK {
 				var got []net.Interface
