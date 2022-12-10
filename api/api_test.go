@@ -226,3 +226,79 @@ func TestInterfaces(t *testing.T) {
 		})
 	}
 }
+
+func TestMemoryStress(t *testing.T) {
+	type methodStatusPair struct {
+		method     string
+		statusCode int
+	}
+	testCases := []struct {
+		name           string
+		methodSequence []methodStatusPair
+	}{
+		{
+			name: "PostGetDelete",
+			methodSequence: []methodStatusPair{
+				{http.MethodPost, http.StatusOK},
+				{http.MethodGet, http.StatusOK},
+				{http.MethodDelete, http.StatusOK},
+			},
+		},
+		{
+			name: "PostDeleteGet",
+			methodSequence: []methodStatusPair{
+				{http.MethodPost, http.StatusOK},
+				{http.MethodDelete, http.StatusOK},
+				{http.MethodGet, http.StatusBadRequest},
+			},
+		},
+		{
+			name: "GetPostDelete",
+			methodSequence: []methodStatusPair{
+				{http.MethodGet, http.StatusBadRequest},
+				{http.MethodPost, http.StatusOK},
+				{http.MethodDelete, http.StatusOK},
+			},
+		},
+		{
+			name: "GetDeletePostDelete",
+			methodSequence: []methodStatusPair{
+				{http.MethodGet, http.StatusBadRequest},
+				{http.MethodDelete, http.StatusBadRequest},
+				{http.MethodPost, http.StatusOK},
+				{http.MethodDelete, http.StatusOK},
+			},
+		},
+		{
+			name: "DeletePostGet",
+			methodSequence: []methodStatusPair{
+				{http.MethodDelete, http.StatusBadRequest},
+				{http.MethodPost, http.StatusOK},
+				{http.MethodGet, http.StatusOK},
+				{http.MethodDelete, http.StatusOK},
+			},
+		},
+		{
+			name: "DeleteGetPostDelete",
+			methodSequence: []methodStatusPair{
+				{http.MethodDelete, http.StatusBadRequest},
+				{http.MethodGet, http.StatusBadRequest},
+				{http.MethodPost, http.StatusOK},
+				{http.MethodDelete, http.StatusOK},
+			},
+		},
+	}
+	for _, tC := range testCases {
+		t.Run(tC.name, func(t *testing.T) {
+			handler := api.Handler(api.NewServer(&testVersion))
+			for _, pair := range tC.methodSequence {
+				request := httptest.NewRequest(pair.method, "/memory/stresssession", http.NoBody)
+				response := sendRequestToHandler(request, handler)
+				defer response.Body.Close()
+				if got, want := response.StatusCode, pair.statusCode; got != want {
+					t.Errorf("got = %d; want = %d", got, want)
+				}
+			}
+		})
+	}
+}

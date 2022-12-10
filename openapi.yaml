@@ -10,6 +10,8 @@ tags:
     description: Information about the app instance
   - name: environment
     description: Information about the run environment
+  - name: stress
+    description: Stress tests for hardware resources
 components:
   schemas:
     version:
@@ -76,6 +78,29 @@ components:
                 type: string
               value:
                 type: string
+    memoryStressSession:
+      type: object
+      properties:
+        startedAt:
+          type: string
+          format: date-time
+        finishedAt:
+          type: string
+          format: date-time
+        bytesAllocated:
+          type: integer
+          format: int64
+    memoryStressSessionForm:
+      type: object
+      properties:
+        interval:
+          type: integer
+          format: duration
+          minimum: 0
+        allocSize:
+          type: integer
+          format: int64
+          minimum: 0
 paths:
   /version:
     get:
@@ -113,3 +138,43 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/interface'
+  /memory/stresssession:
+    get:
+      tags:
+        - stress
+      summary: Get a memory stress session
+      responses:
+        '200':
+          description: Info about the current memory stress session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/memoryStressSession'
+    post:
+      tags:
+        - stress
+      summary: Start a memory stress session
+      requestBody:
+        description: Memory stress parameters
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/memoryStressSessionForm'
+      responses:
+        '200':
+          description: Info about the new memory stress session that has just started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/memoryStressSession'
+    delete:
+      tags:
+        - stress
+      summary: Cancel a memory stress session
+      responses:
+        '200':
+          description: Info about the memory stress session that has just been cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/memoryStressSession'

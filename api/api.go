@@ -1,7 +1,10 @@
 package api
 
 import (
+	"context"
 	"net/http"
+	"sync"
+	"time"
 
 	"github.com/desotech-it/whoami/api/memory"
 	"github.com/desotech-it/whoami/api/net"
@@ -17,12 +20,20 @@ type Api interface {
 	GetMemory(http.ResponseWriter, *http.Request)
 	// GET /interfaces
 	GetInterfaces(http.ResponseWriter, *http.Request)
+	// GET /memory/stresssession
+	GetMemoryStress(http.ResponseWriter, *http.Request)
+	// POST /memory/stresssession
+	PostMemoryStress(http.ResponseWriter, *http.Request, memory.StressParameters)
+	// DELETE /memory/stresssession
+	CancelMemoryStress(http.ResponseWriter, *http.Request)
 }
 
 type Server struct {
-	Version               *version.Info
-	VirtualMemoryProvider memory.VirtualMemoryProvider
-	InterfacesProvider    net.InterfacesProvider
+	Version                  *version.Info
+	VirtualMemoryProvider    memory.VirtualMemoryProvider
+	InterfacesProvider       net.InterfacesProvider
+	memoryStressSession      *memoryStressSession
+	memoryStressSessionMutex sync.RWMutex
 }
 
 func NewServer(versionInfo *version.Info) *Server {
@@ -65,10 +76,81 @@ func (s *Server) serializeInterfaces(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (s *Server) GetMemoryStress(w http.ResponseWriter, r *http.Request) {
+	s.memoryStressSessionMutex.RLock()
+	if s.memoryStressSession == nil {
+		s.memoryStressSessionMutex.RUnlock()
+		http.Error(w, "memory stress is not currently running", http.StatusBadRequest)
+	} else {
+		response := buildMemoryStressSessionResponse(s.memoryStressSession)
+		s.memoryStressSessionMutex.RUnlock()
+		handlers.JSONSerializerHandler(&response).ServeHTTP(w, r)
+	}
+}
+
+func (s *Server) PostMemoryStress(w http.ResponseWriter, r *http.Request, params memory.StressParameters) {
+	s.memoryStressSessionMutex.Lock()
+	if s.memoryStressSession == nil {
+		if stresser, err := memory.NewStresser(params); err != nil {
+			s.memoryStressSessionMutex.Unlock()
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		} else {
+			ctx, cancelFunc := context.WithCancel(context.Background())
+			s.memoryStressSession = &memoryStressSession{
+				stressSession: stressSession{
+					StartedAt:  time.Now().UTC(),
+					cancelFunc: cancelFunc,
+				},
+				stresser: stresser,
+			}
+			s.memoryStressSessionMutex.Unlock()
+			go stresser.Stress(ctx)
+			response := buildMemoryStressSessionResponse(s.memoryStressSession)
+			handlers.JSONSerializerHandler(response).ServeHTTP(w, r)
+		}
+	} else {
+		s.memoryStressSessionMutex.Unlock()
+		http.Error(w, "memory stress is already running", http.StatusBadRequest)
+	}
+}
+
+func (s *Server) CancelMemoryStress(w http.ResponseWriter, r *http.Request) {
+	s.memoryStressSessionMutex.Lock()
+	if s.memoryStressSession == nil {
+		s.memoryStressSessionMutex.Unlock()
+		http.Error(w, "memory stress is not currently running", http.StatusBadRequest)
+	} else {
+		cancelFunc := s.memoryStressSession.cancelFunc
+		finishedAt := time.Now().UTC()
+		s.memoryStressSession.FinishedAt = &finishedAt
+		cancelFunc()
+		response := buildMemoryStressSessionResponse(s.memoryStressSession)
+		s.memoryStressSession = nil
+		s.memoryStressSessionMutex.Unlock()
+		handlers.JSONSerializerHandler(response).ServeHTTP(w, r)
+	}
+}
+
 func Handler(api Api) http.Handler {
 	r := mux.NewRouter()
 	r.HandleFunc("/version", api.GetVersion)
 	r.HandleFunc("/memory", api.GetMemory)
 	r.HandleFunc("/interfaces", api.GetInterfaces)
+	r.Handle("/memory/stresssession", stressHandler(
+		http.HandlerFunc(api.GetMemoryStress),
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if err := r.ParseForm(); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			if params, err := ParseMemoryStressParams(r); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			} else {
+				api.PostMemoryStress(w, r, *params)
+			}
+		}),
+		http.HandlerFunc(api.CancelMemoryStress),
+	))
 	return r
 }
