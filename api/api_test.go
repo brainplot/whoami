@@ -54,6 +54,10 @@ var (
 	errUnknownOutcome = errors.New("unknown outcome")
 )
 
+func newServer() *api.Server {
+	return api.NewServer(&testVersion)
+}
+
 type Outcome uint
 
 const (
@@ -128,7 +132,7 @@ func sendRequestToHandler(request *http.Request, handler http.Handler) *http.Res
 }
 
 func TestVersion(t *testing.T) {
-	handler := api.Handler(api.NewServer(&testVersion))
+	handler := api.Handler(newServer())
 	request := httptest.NewRequest(http.MethodGet, "/version", http.NoBody)
 	response := sendRequestToHandler(request, handler)
 	defer response.Body.Close()
@@ -176,7 +180,7 @@ func TestMemory(t *testing.T) {
 	}
 	for _, tC := range testCases {
 		t.Run(tC.name, func(t *testing.T) {
-			server := api.NewServer(&testVersion)
+			server := newServer()
 			server.VirtualMemoryProvider = tC.provider
 			handler := api.Handler(server)
 			request := httptest.NewRequest(http.MethodGet, "/memory", http.NoBody)
@@ -223,7 +227,7 @@ func TestInterfaces(t *testing.T) {
 	}
 	for _, tC := range testCases {
 		t.Run(tC.name, func(t *testing.T) {
-			server := api.NewServer(&testVersion)
+			server := newServer()
 			server.InterfacesProvider = tC.provider
 			handler := api.Handler(server)
 			request := httptest.NewRequest(http.MethodGet, "/interfaces", http.NoBody)
@@ -267,7 +271,7 @@ func TestHostname(t *testing.T) {
 	}
 	for _, tC := range testCases {
 		t.Run(tC.name, func(t *testing.T) {
-			server := api.NewServer(&testVersion)
+			server := newServer()
 			server.HostnameProvider = tC.provider
 			handler := api.Handler(server)
 			request := httptest.NewRequest(http.MethodGet, "/hostname", http.NoBody)
@@ -354,7 +358,7 @@ func TestMemoryStress(t *testing.T) {
 	}
 	for _, tC := range testCases {
 		t.Run(tC.name, func(t *testing.T) {
-			handler := api.Handler(api.NewServer(&testVersion))
+			handler := api.Handler(newServer())
 			for _, pair := range tC.methodSequence {
 				request := httptest.NewRequest(pair.method, "/memory/stresssession", http.NoBody)
 				response := sendRequestToHandler(request, handler)
