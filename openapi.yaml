@@ -12,6 +12,8 @@ tags:
     description: Information about the run environment
   - name: stress
     description: Stress tests for hardware resources
+  - name: client
+    description: Information about the client
 components:
   schemas:
     version:
@@ -106,6 +108,35 @@ components:
           type: integer
           format: int64
           minimum: 0
+    request:
+      type: object
+      properties:
+        method:
+          type: string
+        path:
+          type: string
+        proto:
+          type: string
+        protoMajor:
+          type: integer
+          format: int32
+          minimum: 0
+        protoMinor:
+          type: integer
+          format: int32
+          minimum: 0
+        headers:
+          type: object
+        form:
+          type: object
+        trailerHeaders:
+          type: object
+        host:
+          type: string
+        remoteAddress:
+          type: string
+    requestForm:
+      type: object
 paths:
   /version:
     get:
@@ -195,3 +226,96 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/memoryStressSession'
+  /request:
+    get:
+      tags:
+        - client
+      summary: Echo a GET request
+      responses:
+        '200':
+          description: Request details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/request'
+    post:
+      tags:
+        - client
+      summary: Echo a POST request
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/requestForm'
+      responses:
+        '200':
+          description: Request details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/request'
+    put:
+      tags:
+        - client
+      summary: Echo a PUT request
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/requestForm'
+      responses:
+        '200':
+          description: Request details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/request'
+    delete:
+      tags:
+        - client
+      summary: Echo a DELETE request
+      responses:
+        '200':
+          description: Request details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/request'
+    options:
+      tags:
+        - client
+      summary: Echo a OPTIONS request
+      responses:
+        '200':
+          description: Request details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/request'
+    trace:
+      tags:
+        - client
+      summary: Echo a TRACE request
+      responses:
+        '200':
+          description: Request details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/request'
+    patch:
+        tags:
+          - client
+        summary: Echo a PATCH request
+        requestBody:
+          content:
+            application/x-www-form-urlencoded:
+              schema:
+                $ref: '#/components/schemas/requestForm'
+        responses:
+          '200':
+            description: Request details
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/request'

@@ -9,6 +9,7 @@ import (
 	"github.com/desotech-it/whoami/api/memory"
 	"github.com/desotech-it/whoami/api/net"
 	"github.com/desotech-it/whoami/api/os"
+	"github.com/desotech-it/whoami/client"
 	"github.com/desotech-it/whoami/handlers"
 	"github.com/desotech-it/whoami/version"
 	"github.com/gorilla/mux"
@@ -23,6 +24,8 @@ type Api interface {
 	GetInterfaces(http.ResponseWriter, *http.Request)
 	// GET /hostname
 	GetHostname(http.ResponseWriter, *http.Request)
+	// GET,POST,PUT,DELETE,CONNECT,OPTIONS,TRACE,PATCH /request
+	EchoRequest(http.ResponseWriter, *http.Request)
 	// GET /memory/stresssession
 	GetMemoryStress(http.ResponseWriter, *http.Request)
 	// POST /memory/stresssession
@@ -93,6 +96,15 @@ func (s *Server) serializeHostname(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (s *Server) EchoRequest(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	clientRequest := client.RequestFromStdRequest(r)
+	handlers.JSONSerializerHandler(clientRequest).ServeHTTP(w, r)
+}
+
 func (s *Server) GetMemoryStress(w http.ResponseWriter, r *http.Request) {
 	s.memoryStressSessionMutex.RLock()
 	if s.memoryStressSession == nil {
@@ -154,6 +166,7 @@ func Handler(api Api) http.Handler {
 	r.HandleFunc("/memory", api.GetMemory)
 	r.HandleFunc("/interfaces", api.GetInterfaces)
 	r.HandleFunc("/hostname", api.GetHostname)
+	r.HandleFunc("/request", api.EchoRequest)
 	r.Handle("/memory/stresssession", stressHandler(
 		http.HandlerFunc(api.GetMemoryStress),
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
