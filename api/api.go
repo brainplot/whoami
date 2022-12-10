@@ -8,6 +8,7 @@ import (
 
 	"github.com/desotech-it/whoami/api/memory"
 	"github.com/desotech-it/whoami/api/net"
+	"github.com/desotech-it/whoami/api/os"
 	"github.com/desotech-it/whoami/handlers"
 	"github.com/desotech-it/whoami/version"
 	"github.com/gorilla/mux"
@@ -20,6 +21,8 @@ type Api interface {
 	GetMemory(http.ResponseWriter, *http.Request)
 	// GET /interfaces
 	GetInterfaces(http.ResponseWriter, *http.Request)
+	// GET /hostname
+	GetHostname(http.ResponseWriter, *http.Request)
 	// GET /memory/stresssession
 	GetMemoryStress(http.ResponseWriter, *http.Request)
 	// POST /memory/stresssession
@@ -32,6 +35,7 @@ type Server struct {
 	Version                  *version.Info
 	VirtualMemoryProvider    memory.VirtualMemoryProvider
 	InterfacesProvider       net.InterfacesProvider
+	HostnameProvider         os.HostnameProvider
 	memoryStressSession      *memoryStressSession
 	memoryStressSessionMutex sync.RWMutex
 }
@@ -44,6 +48,7 @@ func NewServer(versionInfo *version.Info) *Server {
 		Version:               versionInfo,
 		VirtualMemoryProvider: memory.VirtualMemoryProviderFunc(memory.VirtualMemoryWithContext),
 		InterfacesProvider:    net.InterfacesProviderFunc(net.Interfaces),
+		HostnameProvider:      os.HostnameProviderFunc(os.Hostname),
 	}
 }
 
@@ -73,6 +78,18 @@ func (s *Server) serializeInterfaces(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	} else {
 		handlers.JSONSerializerHandler(netInterfaces).ServeHTTP(w, r)
+	}
+}
+
+func (s *Server) GetHostname(w http.ResponseWriter, r *http.Request) {
+	handlers.ReadHandler(http.HandlerFunc(s.serializeHostname)).ServeHTTP(w, r)
+}
+
+func (s *Server) serializeHostname(w http.ResponseWriter, r *http.Request) {
+	if hostname, err := s.HostnameProvider.Hostname(); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	} else {
+		handlers.JSONSerializerHandler(hostname).ServeHTTP(w, r)
 	}
 }
 
@@ -136,6 +153,7 @@ func Handler(api Api) http.Handler {
 	r.HandleFunc("/version", api.GetVersion)
 	r.HandleFunc("/memory", api.GetMemory)
 	r.HandleFunc("/interfaces", api.GetInterfaces)
+	r.HandleFunc("/hostname", api.GetHostname)
 	r.Handle("/memory/stresssession", stressHandler(
 		http.HandlerFunc(api.GetMemoryStress),
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -12,6 +12,7 @@ import (
 	"github.com/desotech-it/whoami/api"
 	"github.com/desotech-it/whoami/api/memory"
 	"github.com/desotech-it/whoami/api/net"
+	"github.com/desotech-it/whoami/api/os"
 	"github.com/desotech-it/whoami/version"
 )
 
@@ -43,6 +44,10 @@ var (
 				},
 			},
 		},
+	}
+
+	testHostname = os.HostnameInfo{
+		Hostname: "foobar",
 	}
 
 	errTest           = errors.New("test error")
@@ -87,6 +92,21 @@ func mockInterfacesProvider(outcome Outcome) net.InterfacesProviderFunc {
 	case OutcomeSuccess:
 		return func() ([]net.Interface, error) {
 			return testInterfaces, nil
+		}
+	default:
+		panic(errUnknownOutcome)
+	}
+}
+
+func mockHostnameProvider(outcome Outcome) os.HostnameProviderFunc {
+	switch outcome {
+	case OutcomeFailure:
+		return func() (*os.HostnameInfo, error) {
+			return nil, errTest
+		}
+	case OutcomeSuccess:
+		return func() (*os.HostnameInfo, error) {
+			return &testHostname, nil
 		}
 	default:
 		panic(errUnknownOutcome)
@@ -219,6 +239,50 @@ func TestInterfaces(t *testing.T) {
 					t.Error(err)
 				} else {
 					if !interfaceSlicesEqual(got, want) {
+						t.Errorf("got = %v; want = %v", got, want)
+					}
+				}
+			}
+		})
+	}
+}
+func TestHostname(t *testing.T) {
+	testCases := []struct {
+		name     string
+		provider os.HostnameProvider
+		code     int
+		body     os.HostnameInfo
+	}{
+		{
+			name:     "Success",
+			provider: mockHostnameProvider(OutcomeSuccess),
+			code:     http.StatusOK,
+			body:     testHostname,
+		},
+		{
+			name:     "Failure",
+			provider: mockHostnameProvider(OutcomeFailure),
+			code:     http.StatusInternalServerError,
+		},
+	}
+	for _, tC := range testCases {
+		t.Run(tC.name, func(t *testing.T) {
+			server := api.NewServer(&testVersion)
+			server.HostnameProvider = tC.provider
+			handler := api.Handler(server)
+			request := httptest.NewRequest(http.MethodGet, "/hostname", http.NoBody)
+			response := sendRequestToHandler(request, handler)
+			defer response.Body.Close()
+			if got, want := response.StatusCode, tC.code; got != want {
+				t.Errorf("got = %d; want = %d", got, want)
+			}
+			if response.StatusCode == http.StatusOK {
+				var got os.HostnameInfo
+				want := tC.body
+				if err := json.NewDecoder(response.Body).Decode(&got); err != nil {
+					t.Error(err)
+				} else {
+					if got != want {
 						t.Errorf("got = %v; want = %v", got, want)
 					}
 				}
