@@ -56,6 +56,7 @@ func TestSerializerHandler(t *testing.T) {
 	for _, tC := range testCases {
 		t.Run(tC.name, func(t *testing.T) {
 			handler := handlers.SerializerHandler{
+				StatusCode:  tC.code,
 				Serializer:  tC.serializer,
 				ContentType: tC.contentType,
 			}

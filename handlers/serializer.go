@@ -9,6 +9,7 @@ import (
 )
 
 type SerializerHandler struct {
+	StatusCode  int
 	Payload     any
 	Serializer  serialize.Serializer
 	ContentType string
@@ -21,6 +22,7 @@ func (h SerializerHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		header := w.Header()
 		header.Set("Content-Type", h.ContentType)
 		header.Set("X-Content-Type-Options", "nosniff")
+		w.WriteHeader(h.StatusCode)
 		http.ServeContent(w, r, "", time.Time{}, bytes.NewReader(data))
 	}
 }

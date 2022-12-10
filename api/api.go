@@ -56,7 +56,7 @@ func NewServer(versionInfo *version.Info) *Server {
 }
 
 func (s *Server) GetVersion(w http.ResponseWriter, r *http.Request) {
-	handlers.ReadHandler(handlers.JSONSerializerHandler(s.Version)).ServeHTTP(w, r)
+	handlers.ReadHandler(handlers.JSONSerializerHandler(http.StatusOK, s.Version)).ServeHTTP(w, r)
 }
 
 func (s *Server) GetMemory(w http.ResponseWriter, r *http.Request) {
@@ -68,7 +68,7 @@ func (s *Server) serializeVirtualMemory(w http.ResponseWriter, r *http.Request) 
 		errorHandler := handlers.ErrorHandler(err.Error(), http.StatusInternalServerError)
 		handlers.CancellableHandler(err, errorHandler).ServeHTTP(w, r)
 	} else {
-		handlers.JSONSerializerHandler(vm).ServeHTTP(w, r)
+		handlers.JSONSerializerHandler(http.StatusOK, vm).ServeHTTP(w, r)
 	}
 }
 
@@ -80,7 +80,7 @@ func (s *Server) serializeInterfaces(w http.ResponseWriter, r *http.Request) {
 	if netInterfaces, err := s.InterfacesProvider.Interfaces(); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	} else {
-		handlers.JSONSerializerHandler(netInterfaces).ServeHTTP(w, r)
+		handlers.JSONSerializerHandler(http.StatusOK, netInterfaces).ServeHTTP(w, r)
 	}
 }
 
@@ -92,7 +92,7 @@ func (s *Server) serializeHostname(w http.ResponseWriter, r *http.Request) {
 	if hostname, err := s.HostnameProvider.Hostname(); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	} else {
-		handlers.JSONSerializerHandler(hostname).ServeHTTP(w, r)
+		handlers.JSONSerializerHandler(http.StatusOK, hostname).ServeHTTP(w, r)
 	}
 }
 
@@ -102,7 +102,7 @@ func (s *Server) EchoRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	clientRequest := client.RequestFromStdRequest(r)
-	handlers.JSONSerializerHandler(clientRequest).ServeHTTP(w, r)
+	handlers.JSONSerializerHandler(http.StatusOK, clientRequest).ServeHTTP(w, r)
 }
 
 func (s *Server) GetMemoryStress(w http.ResponseWriter, r *http.Request) {
@@ -113,7 +113,7 @@ func (s *Server) GetMemoryStress(w http.ResponseWriter, r *http.Request) {
 	} else {
 		response := buildMemoryStressSessionResponse(s.memoryStressSession)
 		s.memoryStressSessionMutex.RUnlock()
-		handlers.JSONSerializerHandler(&response).ServeHTTP(w, r)
+		handlers.JSONSerializerHandler(http.StatusOK, &response).ServeHTTP(w, r)
 	}
 }
 
@@ -135,7 +135,7 @@ func (s *Server) PostMemoryStress(w http.ResponseWriter, r *http.Request, params
 			s.memoryStressSessionMutex.Unlock()
 			go stresser.Stress(ctx)
 			response := buildMemoryStressSessionResponse(s.memoryStressSession)
-			handlers.JSONSerializerHandler(response).ServeHTTP(w, r)
+			handlers.JSONSerializerHandler(http.StatusOK, response).ServeHTTP(w, r)
 		}
 	} else {
 		s.memoryStressSessionMutex.Unlock()
@@ -156,7 +156,7 @@ func (s *Server) CancelMemoryStress(w http.ResponseWriter, r *http.Request) {
 		response := buildMemoryStressSessionResponse(s.memoryStressSession)
 		s.memoryStressSession = nil
 		s.memoryStressSessionMutex.Unlock()
-		handlers.JSONSerializerHandler(response).ServeHTTP(w, r)
+		handlers.JSONSerializerHandler(http.StatusOK, response).ServeHTTP(w, r)
 	}
 }
 

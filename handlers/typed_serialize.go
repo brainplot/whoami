@@ -9,8 +9,9 @@ import (
 	"github.com/desotech-it/whoami/serialize"
 )
 
-func JSONSerializerHandler(v any) http.Handler {
+func JSONSerializerHandler(statusCode int, v any) http.Handler {
 	return SerializerHandler{
+		StatusCode:  statusCode,
 		Payload:     v,
 		Serializer:  serialize.SerializerJSON,
 		ContentType: "application/json; charset=utf-8",
