@@ -11,6 +11,7 @@ import (
 	"github.com/desotech-it/whoami/api/os"
 	"github.com/desotech-it/whoami/client"
 	"github.com/desotech-it/whoami/handlers"
+	"github.com/desotech-it/whoami/status"
 	"github.com/desotech-it/whoami/version"
 	"github.com/gorilla/mux"
 )
@@ -18,6 +19,10 @@ import (
 type Api interface {
 	// GET /version
 	GetVersion(http.ResponseWriter, *http.Request)
+	// GET /health
+	GetHealth(http.ResponseWriter, *http.Request)
+	// PUT /health
+	PutHealth(http.ResponseWriter, *http.Request)
 	// GET /memory
 	GetMemory(http.ResponseWriter, *http.Request)
 	// GET /interfaces
@@ -36,6 +41,7 @@ type Api interface {
 
 type Server struct {
 	Version                  *version.Info
+	InstanceStatus           *status.InstanceStatus
 	VirtualMemoryProvider    memory.VirtualMemoryProvider
 	InterfacesProvider       net.InterfacesProvider
 	HostnameProvider         os.HostnameProvider
@@ -49,6 +55,7 @@ func NewServer(versionInfo *version.Info) *Server {
 	}
 	return &Server{
 		Version:               versionInfo,
+		InstanceStatus:        &status.Current,
 		VirtualMemoryProvider: memory.VirtualMemoryProviderFunc(memory.VirtualMemoryWithContext),
 		InterfacesProvider:    net.InterfacesProviderFunc(net.Interfaces),
 		HostnameProvider:      os.HostnameProviderFunc(os.Hostname),
@@ -57,6 +64,30 @@ func NewServer(versionInfo *version.Info) *Server {
 
 func (s *Server) GetVersion(w http.ResponseWriter, r *http.Request) {
 	handlers.ReadHandler(handlers.JSONSerializerHandler(http.StatusOK, s.Version)).ServeHTTP(w, r)
+}
+
+func (s *Server) GetHealth(w http.ResponseWriter, r *http.Request) {
+	var httpStatus int
+	health := s.InstanceStatus.Health
+	if health == status.Up {
+		httpStatus = http.StatusOK
+	} else {
+		httpStatus = http.StatusServiceUnavailable
+	}
+	handlers.JSONSerializerHandler(httpStatus, StatusInfo{health.String()}).ServeHTTP(w, r)
+}
+
+func (s *Server) PutHealth(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if status, err := ParseStatusInValues(r.Form); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+	} else {
+		s.InstanceStatus.Health = status
+		handlers.JSONSerializerHandler(http.StatusOK, StatusInfo{status.String()}).ServeHTTP(w, r)
+	}
 }
 
 func (s *Server) GetMemory(w http.ResponseWriter, r *http.Request) {
@@ -163,6 +194,10 @@ func (s *Server) CancelMemoryStress(w http.ResponseWriter, r *http.Request) {
 func Handler(api Api) http.Handler {
 	r := mux.NewRouter()
 	r.HandleFunc("/version", api.GetVersion)
+	r.Handle("/health", statusHandler(
+		http.HandlerFunc(api.GetHealth),
+		http.HandlerFunc(api.PutHealth),
+	))
 	r.HandleFunc("/memory", api.GetMemory)
 	r.HandleFunc("/interfaces", api.GetInterfaces)
 	r.HandleFunc("/hostname", api.GetHostname)

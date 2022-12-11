@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -13,6 +15,7 @@ import (
 	"github.com/desotech-it/whoami/api/memory"
 	"github.com/desotech-it/whoami/api/net"
 	"github.com/desotech-it/whoami/api/os"
+	"github.com/desotech-it/whoami/status"
 	"github.com/desotech-it/whoami/version"
 )
 
@@ -151,6 +154,87 @@ func TestVersion(t *testing.T) {
 		}
 		if got != *want {
 			t.Errorf("got = %v; want = %v", got, testVersion)
+		}
+	}
+}
+
+func TestGetHealth(t *testing.T) {
+	testCases := []struct {
+		name               string
+		instanceStatus     status.InstanceStatus
+		responseStatusCode int
+		responseBody       api.StatusInfo
+	}{
+		{
+			name:               "up",
+			instanceStatus:     status.InstanceStatus{Health: status.Up},
+			responseStatusCode: http.StatusOK,
+			responseBody:       api.StatusInfo{status.Up.String()},
+		},
+		{
+			name:               "down",
+			instanceStatus:     status.InstanceStatus{Health: status.Down},
+			responseStatusCode: http.StatusServiceUnavailable,
+			responseBody:       api.StatusInfo{status.Down.String()},
+		},
+	}
+	for _, tC := range testCases {
+		t.Run(tC.name, func(t *testing.T) {
+			server := newServer()
+			server.InstanceStatus = &tC.instanceStatus
+			handler := api.Handler(server)
+			request := httptest.NewRequest(http.MethodGet, "/health", http.NoBody)
+			response := sendRequestToHandler(request, handler)
+			defer response.Body.Close()
+			if got, want := response.StatusCode, tC.responseStatusCode; got != want {
+				t.Errorf("got = %d; want = %d", got, want)
+			}
+			responseBody := api.StatusInfo{}
+			if err := json.NewDecoder(response.Body).Decode(&responseBody); err != nil {
+				t.Error(err)
+			}
+			if got, want := responseBody, tC.responseBody; got != want {
+				t.Errorf("got = %v; want = %v", got, want)
+			}
+		})
+	}
+}
+
+func TestPutHealth(t *testing.T) {
+	testInstanceStatus := status.InstanceStatus{}
+	testCases := []struct {
+		statusCode   int
+		requestBody  io.Reader
+		responseBody api.StatusInfo
+	}{
+		{
+			statusCode:   http.StatusOK,
+			requestBody:  strings.NewReader("status=up"),
+			responseBody: api.StatusInfo{status.Up.String()},
+		},
+		{
+			statusCode:   http.StatusOK,
+			requestBody:  strings.NewReader("status=down"),
+			responseBody: api.StatusInfo{status.Down.String()},
+		},
+	}
+	for _, tC := range testCases {
+		server := newServer()
+		server.InstanceStatus = &testInstanceStatus
+		handler := api.Handler(server)
+		request := httptest.NewRequest(http.MethodPut, "/health", tC.requestBody)
+		request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		response := sendRequestToHandler(request, handler)
+		defer response.Body.Close()
+		if got, want := response.StatusCode, tC.statusCode; got != want {
+			t.Errorf("got = %d; want = %d", got, want)
+		}
+		body := api.StatusInfo{}
+		if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
+			t.Error(err)
+		}
+		if got, want := body, tC.responseBody; got != want {
+			t.Errorf("got = %v; want = %v", got, want)
 		}
 	}
 }
