@@ -244,12 +244,14 @@ func TestMemory(t *testing.T) {
 		name     string
 		provider memory.VirtualMemoryProvider
 		code     int
+		body     *memory.VirtualMemoryStat
 		err      error
 	}{
 		{
 			name:     "Success",
 			provider: mockVirtualMemoryProvider(OutcomeSuccess),
 			code:     http.StatusOK,
+			body:     &testVirtualMemory,
 		},
 		{
 			name:     "Failure",
@@ -273,6 +275,15 @@ func TestMemory(t *testing.T) {
 			defer response.Body.Close()
 			if got, want := response.StatusCode, tC.code; got != want {
 				t.Errorf("got = %d; want = %d", got, want)
+			}
+			if response.StatusCode == http.StatusOK {
+				body := memory.VirtualMemoryStat{}
+				if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
+					t.Error(err)
+				}
+				if got, want := body, *tC.body; got != want {
+					t.Errorf("got = %v; want = %v", got, want)
+				}
 			}
 		})
 	}
