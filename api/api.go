@@ -13,7 +13,8 @@ import (
 	"github.com/desotech-it/whoami/handlers"
 	"github.com/desotech-it/whoami/status"
 	"github.com/desotech-it/whoami/version"
-	"github.com/gorilla/mux"
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/render"
 )
 
 type Api interface {
@@ -63,7 +64,7 @@ func NewServer(versionInfo *version.Info) *Server {
 }
 
 func (s *Server) GetVersion(w http.ResponseWriter, r *http.Request) {
-	handlers.ReadHandler(handlers.JSONSerializerHandler(http.StatusOK, s.Version)).ServeHTTP(w, r)
+	render.JSON(w, r, s.Version)
 }
 
 func (s *Server) GetHealth(w http.ResponseWriter, r *http.Request) {
@@ -74,7 +75,8 @@ func (s *Server) GetHealth(w http.ResponseWriter, r *http.Request) {
 	} else {
 		httpStatus = http.StatusServiceUnavailable
 	}
-	handlers.JSONSerializerHandler(httpStatus, StatusInfo{health.String()}).ServeHTTP(w, r)
+	render.Status(r, httpStatus)
+	render.JSON(w, r, StatusInfo{health.String()})
 }
 
 func (s *Server) PutHealth(w http.ResponseWriter, r *http.Request) {
@@ -86,44 +88,32 @@ func (s *Server) PutHealth(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 	} else {
 		s.InstanceStatus.Health = status
-		handlers.JSONSerializerHandler(http.StatusOK, StatusInfo{status.String()}).ServeHTTP(w, r)
+		render.JSON(w, r, StatusInfo{status.String()})
 	}
 }
 
 func (s *Server) GetMemory(w http.ResponseWriter, r *http.Request) {
-	handlers.ReadHandler(http.HandlerFunc(s.serializeVirtualMemory)).ServeHTTP(w, r)
-}
-
-func (s *Server) serializeVirtualMemory(w http.ResponseWriter, r *http.Request) {
 	if vm, err := s.VirtualMemoryProvider.VirtualMemory(r.Context()); err != nil {
 		errorHandler := handlers.ErrorHandler(err.Error(), http.StatusInternalServerError)
 		handlers.CancellableHandler(err, errorHandler).ServeHTTP(w, r)
 	} else {
-		handlers.JSONSerializerHandler(http.StatusOK, vm).ServeHTTP(w, r)
+		render.JSON(w, r, vm)
 	}
 }
 
 func (s *Server) GetInterfaces(w http.ResponseWriter, r *http.Request) {
-	handlers.ReadHandler(http.HandlerFunc(s.serializeInterfaces)).ServeHTTP(w, r)
-}
-
-func (s *Server) serializeInterfaces(w http.ResponseWriter, r *http.Request) {
 	if netInterfaces, err := s.InterfacesProvider.Interfaces(); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	} else {
-		handlers.JSONSerializerHandler(http.StatusOK, netInterfaces).ServeHTTP(w, r)
+		render.JSON(w, r, netInterfaces)
 	}
 }
 
 func (s *Server) GetHostname(w http.ResponseWriter, r *http.Request) {
-	handlers.ReadHandler(http.HandlerFunc(s.serializeHostname)).ServeHTTP(w, r)
-}
-
-func (s *Server) serializeHostname(w http.ResponseWriter, r *http.Request) {
 	if hostname, err := s.HostnameProvider.Hostname(); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	} else {
-		handlers.JSONSerializerHandler(http.StatusOK, hostname).ServeHTTP(w, r)
+		render.JSON(w, r, hostname)
 	}
 }
 
@@ -133,7 +123,7 @@ func (s *Server) EchoRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	clientRequest := client.RequestFromStdRequest(r)
-	handlers.JSONSerializerHandler(http.StatusOK, clientRequest).ServeHTTP(w, r)
+	render.JSON(w, r, clientRequest)
 }
 
 func (s *Server) GetMemoryStress(w http.ResponseWriter, r *http.Request) {
@@ -144,7 +134,7 @@ func (s *Server) GetMemoryStress(w http.ResponseWriter, r *http.Request) {
 	} else {
 		response := buildMemoryStressSessionResponse(s.memoryStressSession)
 		s.memoryStressSessionMutex.RUnlock()
-		handlers.JSONSerializerHandler(http.StatusOK, &response).ServeHTTP(w, r)
+		render.JSON(w, r, response)
 	}
 }
 
@@ -166,7 +156,7 @@ func (s *Server) PostMemoryStress(w http.ResponseWriter, r *http.Request, params
 			s.memoryStressSessionMutex.Unlock()
 			go stresser.Stress(ctx)
 			response := buildMemoryStressSessionResponse(s.memoryStressSession)
-			handlers.JSONSerializerHandler(http.StatusOK, response).ServeHTTP(w, r)
+			render.JSON(w, r, response)
 		}
 	} else {
 		s.memoryStressSessionMutex.Unlock()
@@ -187,24 +177,37 @@ func (s *Server) CancelMemoryStress(w http.ResponseWriter, r *http.Request) {
 		response := buildMemoryStressSessionResponse(s.memoryStressSession)
 		s.memoryStressSession = nil
 		s.memoryStressSessionMutex.Unlock()
-		handlers.JSONSerializerHandler(http.StatusOK, response).ServeHTTP(w, r)
+		render.JSON(w, r, response)
 	}
 }
 
+func handleGetHead(r *chi.Mux, pattern string, getHandler http.HandlerFunc) {
+	r.Get(pattern, getHandler)
+	r.Head(pattern, getHandler)
+}
+
+func handleGetHeadPostDelete(r *chi.Mux, pattern string, getHandler, postHandler, deleteHandler http.HandlerFunc) {
+	handleGetHead(r, pattern, getHandler)
+	r.Post(pattern, postHandler)
+	r.Delete(pattern, deleteHandler)
+}
+
+func handleGetHeadPut(r *chi.Mux, pattern string, getHandler, putHandler http.HandlerFunc) {
+	handleGetHead(r, pattern, getHandler)
+	r.Put(pattern, putHandler)
+}
+
 func Handler(api Api) http.Handler {
-	r := mux.NewRouter()
-	r.HandleFunc("/version", api.GetVersion)
-	r.Handle("/health", statusHandler(
-		http.HandlerFunc(api.GetHealth),
-		http.HandlerFunc(api.PutHealth),
-	))
-	r.HandleFunc("/memory", api.GetMemory)
-	r.HandleFunc("/interfaces", api.GetInterfaces)
-	r.HandleFunc("/hostname", api.GetHostname)
+	r := chi.NewRouter()
+	handleGetHead(r, "/version", api.GetVersion)
+	handleGetHeadPut(r, "/health", api.GetHealth, api.PutHealth)
+	handleGetHead(r, "/memory", api.GetMemory)
+	handleGetHead(r, "/interfaces", api.GetInterfaces)
+	handleGetHead(r, "/hostname", api.GetHostname)
 	r.HandleFunc("/request", api.EchoRequest)
-	r.Handle("/memory/stresssession", stressHandler(
-		http.HandlerFunc(api.GetMemoryStress),
-		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handleGetHeadPostDelete(r, "/memory/stresssession",
+		api.GetMemoryStress,
+		func(w http.ResponseWriter, r *http.Request) {
 			if err := r.ParseForm(); err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
@@ -215,8 +218,8 @@ func Handler(api Api) http.Handler {
 			} else {
 				api.PostMemoryStress(w, r, *params)
 			}
-		}),
-		http.HandlerFunc(api.CancelMemoryStress),
-	))
+		},
+		api.CancelMemoryStress,
+	)
 	return r
 }

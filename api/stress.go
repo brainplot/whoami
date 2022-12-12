@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/desotech-it/whoami/api/memory"
-	"github.com/gorilla/handlers"
 )
 
 const (
@@ -34,15 +33,6 @@ type memoryStressSessionResponse struct {
 	StartedAt      time.Time  `json:"startedAt"`
 	FinishedAt     *time.Time `json:"finishedAt,omitempty"`
 	BytesAllocated int        `json:"bytesAllocated"`
-}
-
-func stressHandler(get, post, delete http.Handler) http.Handler {
-	handler := handlers.MethodHandler{}
-	handler[http.MethodGet] = get
-	handler[http.MethodHead] = get
-	handler[http.MethodPost] = post
-	handler[http.MethodDelete] = delete
-	return handler
 }
 
 func buildMemoryStressSessionResponse(s *memoryStressSession) memoryStressSessionResponse {
