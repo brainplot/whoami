@@ -163,19 +163,19 @@ func TestGetHealth(t *testing.T) {
 		name               string
 		instanceStatus     status.InstanceStatus
 		responseStatusCode int
-		responseBody       api.StatusInfo
+		responseBody       api.Status
 	}{
 		{
 			name:               "up",
 			instanceStatus:     status.InstanceStatus{Health: status.Up},
 			responseStatusCode: http.StatusOK,
-			responseBody:       api.StatusInfo{status.Up.String()},
+			responseBody:       api.Status{status.Up.String()},
 		},
 		{
 			name:               "down",
 			instanceStatus:     status.InstanceStatus{Health: status.Down},
 			responseStatusCode: http.StatusServiceUnavailable,
-			responseBody:       api.StatusInfo{status.Down.String()},
+			responseBody:       api.Status{status.Down.String()},
 		},
 	}
 	for _, tC := range testCases {
@@ -189,7 +189,7 @@ func TestGetHealth(t *testing.T) {
 			if got, want := response.StatusCode, tC.responseStatusCode; got != want {
 				t.Errorf("got = %d; want = %d", got, want)
 			}
-			responseBody := api.StatusInfo{}
+			responseBody := api.Status{}
 			if err := json.NewDecoder(response.Body).Decode(&responseBody); err != nil {
 				t.Error(err)
 			}
@@ -205,17 +205,17 @@ func TestPutHealth(t *testing.T) {
 	testCases := []struct {
 		statusCode   int
 		requestBody  io.Reader
-		responseBody api.StatusInfo
+		responseBody api.Status
 	}{
 		{
 			statusCode:   http.StatusOK,
 			requestBody:  strings.NewReader("status=up"),
-			responseBody: api.StatusInfo{status.Up.String()},
+			responseBody: api.Status{status.Up.String()},
 		},
 		{
 			statusCode:   http.StatusOK,
 			requestBody:  strings.NewReader("status=down"),
-			responseBody: api.StatusInfo{status.Down.String()},
+			responseBody: api.Status{status.Down.String()},
 		},
 	}
 	for _, tC := range testCases {
@@ -229,7 +229,7 @@ func TestPutHealth(t *testing.T) {
 		if got, want := response.StatusCode, tC.statusCode; got != want {
 			t.Errorf("got = %d; want = %d", got, want)
 		}
-		body := api.StatusInfo{}
+		body := api.Status{}
 		if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
 			t.Error(err)
 		}

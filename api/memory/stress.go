@@ -19,8 +19,8 @@ var (
 )
 
 type StressParameters struct {
-	Interval       time.Duration
-	AllocationSize int
+	Interval       time.Duration `json:"interval" form:"interval"`
+	AllocationSize int           `json:"allocationSize" form:"allocationSize"`
 }
 
 type Stresser struct {

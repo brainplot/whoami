@@ -46,7 +46,7 @@ type Server struct {
 	VirtualMemoryProvider    memory.VirtualMemoryProvider
 	InterfacesProvider       net.InterfacesProvider
 	HostnameProvider         os.HostnameProvider
-	memoryStressSession      *memoryStressSession
+	memoryStressSession      *MemoryStressSession
 	memoryStressSessionMutex sync.RWMutex
 }
 
@@ -76,19 +76,20 @@ func (s *Server) GetHealth(w http.ResponseWriter, r *http.Request) {
 		httpStatus = http.StatusServiceUnavailable
 	}
 	render.Status(r, httpStatus)
-	render.JSON(w, r, StatusInfo{health.String()})
+	render.JSON(w, r, Status{health.String()})
 }
 
 func (s *Server) PutHealth(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseForm(); err != nil {
-		renderError(w, r, err.Error(), http.StatusInternalServerError)
+	form := Status{}
+	if err := DecodeRequestBody(r, &form); err != nil {
+		renderError(w, r, err.Error(), http.StatusBadRequest)
 		return
 	}
-	if status, err := ParseStatusInValues(r.Form); err != nil {
+	if status, err := status.Parse(form.Status); err != nil {
 		renderError(w, r, err.Error(), http.StatusBadRequest)
 	} else {
 		s.InstanceStatus.Health = status
-		render.JSON(w, r, StatusInfo{status.String()})
+		render.JSON(w, r, Status{status.String()})
 	}
 }
 
@@ -134,9 +135,14 @@ func (s *Server) GetMemoryStress(w http.ResponseWriter, r *http.Request) {
 		s.memoryStressSessionMutex.RUnlock()
 		renderError(w, r, "memory stress is not currently running", http.StatusBadRequest)
 	} else {
-		response := buildMemoryStressSessionResponse(s.memoryStressSession)
+		render.JSON(w, r, MemoryStressSession{
+			StressSession: StressSession{
+				StartedAt:  s.memoryStressSession.StartedAt,
+				FinishedAt: s.memoryStressSession.FinishedAt,
+			},
+			BytesAllocated: s.memoryStressSession.stresser.BytesAllocated(),
+		})
 		s.memoryStressSessionMutex.RUnlock()
-		render.JSON(w, r, response)
 	}
 }
 
@@ -148,17 +154,21 @@ func (s *Server) PostMemoryStress(w http.ResponseWriter, r *http.Request, params
 			renderError(w, r, err.Error(), http.StatusBadRequest)
 		} else {
 			ctx, cancelFunc := context.WithCancel(context.Background())
-			s.memoryStressSession = &memoryStressSession{
-				stressSession: stressSession{
-					StartedAt:  time.Now().UTC(),
-					cancelFunc: cancelFunc,
+			s.memoryStressSession = &MemoryStressSession{
+				StressSession: StressSession{
+					StartedAt: time.Now().UTC(),
 				},
-				stresser: stresser,
+				cancelFunc: cancelFunc,
+				stresser:   stresser,
 			}
+			render.JSON(w, r, MemoryStressSession{
+				StressSession: StressSession{
+					StartedAt: s.memoryStressSession.StartedAt,
+				},
+				BytesAllocated: s.memoryStressSession.stresser.BytesAllocated(),
+			})
 			s.memoryStressSessionMutex.Unlock()
 			go stresser.Stress(ctx)
-			response := buildMemoryStressSessionResponse(s.memoryStressSession)
-			render.JSON(w, r, response)
 		}
 	} else {
 		s.memoryStressSessionMutex.Unlock()
@@ -176,10 +186,15 @@ func (s *Server) CancelMemoryStress(w http.ResponseWriter, r *http.Request) {
 		finishedAt := time.Now().UTC()
 		s.memoryStressSession.FinishedAt = &finishedAt
 		cancelFunc()
-		response := buildMemoryStressSessionResponse(s.memoryStressSession)
+		render.JSON(w, r, MemoryStressSession{
+			StressSession: StressSession{
+				StartedAt:  s.memoryStressSession.StartedAt,
+				FinishedAt: s.memoryStressSession.FinishedAt,
+			},
+			BytesAllocated: s.memoryStressSession.stresser.BytesAllocated(),
+		})
 		s.memoryStressSession = nil
 		s.memoryStressSessionMutex.Unlock()
-		render.JSON(w, r, response)
 	}
 }
 
@@ -199,6 +214,11 @@ func handleGetHeadPut(r *chi.Mux, pattern string, getHandler, putHandler http.Ha
 	r.Put(pattern, putHandler)
 }
 
+func requestHasNoBody(r *http.Request) bool {
+	contentLength := r.Header.Get("Content-Length")
+	return len(contentLength) == 0 || contentLength == "0"
+}
+
 func Handler(api Api) http.Handler {
 	r := chi.NewRouter()
 	handleGetHead(r, "/version", api.GetVersion)
@@ -207,19 +227,18 @@ func Handler(api Api) http.Handler {
 	handleGetHead(r, "/interfaces", api.GetInterfaces)
 	handleGetHead(r, "/hostname", api.GetHostname)
 	r.HandleFunc("/request", api.EchoRequest)
+	// TODO test this endpoint better (different parameters etc...)
 	handleGetHeadPostDelete(r, "/memory/stresssession",
 		api.GetMemoryStress,
 		func(w http.ResponseWriter, r *http.Request) {
-			if err := r.ParseForm(); err != nil {
-				renderError(w, r, err.Error(), http.StatusBadRequest)
-				return
+			form := memory.StressParameters{}
+			if !requestHasNoBody(r) {
+				if err := DecodeRequestBody(r, &form); err != nil {
+					renderError(w, r, err.Error(), http.StatusBadRequest)
+					return
+				}
 			}
-			if params, err := ParseMemoryStressParams(r); err != nil {
-				renderError(w, r, err.Error(), http.StatusBadRequest)
-				return
-			} else {
-				api.PostMemoryStress(w, r, *params)
-			}
+			api.PostMemoryStress(w, r, form)
 		},
 		api.CancelMemoryStress,
 	)
