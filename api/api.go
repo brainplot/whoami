@@ -81,11 +81,11 @@ func (s *Server) GetHealth(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) PutHealth(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		renderError(w, r, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	if status, err := ParseStatusInValues(r.Form); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		renderError(w, r, err.Error(), http.StatusBadRequest)
 	} else {
 		s.InstanceStatus.Health = status
 		render.JSON(w, r, StatusInfo{status.String()})
@@ -94,8 +94,10 @@ func (s *Server) PutHealth(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) GetMemory(w http.ResponseWriter, r *http.Request) {
 	if vm, err := s.VirtualMemoryProvider.VirtualMemory(r.Context()); err != nil {
-		errorHandler := handlers.ErrorHandler(err.Error(), http.StatusInternalServerError)
-		handlers.CancellableHandler(err, errorHandler).ServeHTTP(w, r)
+		next := func(w http.ResponseWriter, r *http.Request) {
+			renderError(w, r, err.Error(), http.StatusInternalServerError)
+		}
+		handlers.CancellableHandler(err, http.HandlerFunc(next)).ServeHTTP(w, r)
 	} else {
 		render.JSON(w, r, vm)
 	}
@@ -103,7 +105,7 @@ func (s *Server) GetMemory(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) GetInterfaces(w http.ResponseWriter, r *http.Request) {
 	if netInterfaces, err := s.InterfacesProvider.Interfaces(); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		renderError(w, r, err.Error(), http.StatusInternalServerError)
 	} else {
 		render.JSON(w, r, netInterfaces)
 	}
@@ -111,7 +113,7 @@ func (s *Server) GetInterfaces(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) GetHostname(w http.ResponseWriter, r *http.Request) {
 	if hostname, err := s.HostnameProvider.Hostname(); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		renderError(w, r, err.Error(), http.StatusInternalServerError)
 	} else {
 		render.JSON(w, r, hostname)
 	}
@@ -119,7 +121,7 @@ func (s *Server) GetHostname(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) EchoRequest(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		renderError(w, r, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	clientRequest := client.RequestFromStdRequest(r)
@@ -130,7 +132,7 @@ func (s *Server) GetMemoryStress(w http.ResponseWriter, r *http.Request) {
 	s.memoryStressSessionMutex.RLock()
 	if s.memoryStressSession == nil {
 		s.memoryStressSessionMutex.RUnlock()
-		http.Error(w, "memory stress is not currently running", http.StatusBadRequest)
+		renderError(w, r, "memory stress is not currently running", http.StatusBadRequest)
 	} else {
 		response := buildMemoryStressSessionResponse(s.memoryStressSession)
 		s.memoryStressSessionMutex.RUnlock()
@@ -143,7 +145,7 @@ func (s *Server) PostMemoryStress(w http.ResponseWriter, r *http.Request, params
 	if s.memoryStressSession == nil {
 		if stresser, err := memory.NewStresser(params); err != nil {
 			s.memoryStressSessionMutex.Unlock()
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			renderError(w, r, err.Error(), http.StatusBadRequest)
 		} else {
 			ctx, cancelFunc := context.WithCancel(context.Background())
 			s.memoryStressSession = &memoryStressSession{
@@ -160,7 +162,7 @@ func (s *Server) PostMemoryStress(w http.ResponseWriter, r *http.Request, params
 		}
 	} else {
 		s.memoryStressSessionMutex.Unlock()
-		http.Error(w, "memory stress is already running", http.StatusBadRequest)
+		renderError(w, r, "memory stress is already running", http.StatusBadRequest)
 	}
 }
 
@@ -168,7 +170,7 @@ func (s *Server) CancelMemoryStress(w http.ResponseWriter, r *http.Request) {
 	s.memoryStressSessionMutex.Lock()
 	if s.memoryStressSession == nil {
 		s.memoryStressSessionMutex.Unlock()
-		http.Error(w, "memory stress is not currently running", http.StatusBadRequest)
+		renderError(w, r, "memory stress is not currently running", http.StatusBadRequest)
 	} else {
 		cancelFunc := s.memoryStressSession.cancelFunc
 		finishedAt := time.Now().UTC()
@@ -209,11 +211,11 @@ func Handler(api Api) http.Handler {
 		api.GetMemoryStress,
 		func(w http.ResponseWriter, r *http.Request) {
 			if err := r.ParseForm(); err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
+				renderError(w, r, err.Error(), http.StatusBadRequest)
 				return
 			}
 			if params, err := ParseMemoryStressParams(r); err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
+				renderError(w, r, err.Error(), http.StatusBadRequest)
 				return
 			} else {
 				api.PostMemoryStress(w, r, *params)
