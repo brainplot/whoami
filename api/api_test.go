@@ -9,7 +9,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/desotech-it/whoami/api"
 	"github.com/desotech-it/whoami/api/memory"
@@ -21,11 +20,11 @@ import (
 
 var (
 	testVersion = version.Info{
-		Major:     1,
-		Minor:     2,
-		Patch:     3,
+		Major:     "1",
+		Minor:     "2",
+		Patch:     "3",
 		Commit:    "feedcoffee",
-		BuildDate: time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC),
+		BuildDate: "1970-01-01T00:00:00Z",
 	}
 
 	testVirtualMemory = memory.VirtualMemoryStat{
