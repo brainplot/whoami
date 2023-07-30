@@ -57,7 +57,7 @@ var (
 )
 
 func newServer() *api.Server {
-	return api.NewServer(&testVersion)
+	return api.NewServerWithVersion(&testVersion)
 }
 
 type Outcome uint

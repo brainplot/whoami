@@ -40,6 +40,14 @@ type Api interface {
 	CancelMemoryStress(http.ResponseWriter, *http.Request)
 }
 
+var (
+	defaultVersion               *version.Info                = &version.BuildInfo
+	defaultInstanceStatus        *status.InstanceStatus       = &status.Current
+	defaultVirtualMemoryProvider memory.VirtualMemoryProvider = memory.VirtualMemoryProviderFunc(memory.VirtualMemoryWithContext)
+	defaultInterfacesProvider    net.InterfacesProvider       = net.InterfacesProviderFunc(net.Interfaces)
+	defaultHostnameProvider      os.HostnameProvider          = os.HostnameProviderFunc(os.Hostname)
+)
+
 type Server struct {
 	Version                  *version.Info
 	InstanceStatus           *status.InstanceStatus
@@ -50,16 +58,26 @@ type Server struct {
 	memoryStressSessionMutex sync.RWMutex
 }
 
-func NewServer(versionInfo *version.Info) *Server {
+func NewServer() *Server {
+	return &Server{
+		Version:               defaultVersion,
+		InstanceStatus:        defaultInstanceStatus,
+		VirtualMemoryProvider: defaultVirtualMemoryProvider,
+		InterfacesProvider:    defaultInterfacesProvider,
+		HostnameProvider:      defaultHostnameProvider,
+	}
+}
+
+func NewServerWithVersion(versionInfo *version.Info) *Server {
 	if versionInfo == nil {
 		panic("versionInfo must not be nil")
 	}
 	return &Server{
 		Version:               versionInfo,
-		InstanceStatus:        &status.Current,
-		VirtualMemoryProvider: memory.VirtualMemoryProviderFunc(memory.VirtualMemoryWithContext),
-		InterfacesProvider:    net.InterfacesProviderFunc(net.Interfaces),
-		HostnameProvider:      os.HostnameProviderFunc(os.Hostname),
+		InstanceStatus:        defaultInstanceStatus,
+		VirtualMemoryProvider: defaultVirtualMemoryProvider,
+		InterfacesProvider:    defaultInterfacesProvider,
+		HostnameProvider:      defaultHostnameProvider,
 	}
 }
 
